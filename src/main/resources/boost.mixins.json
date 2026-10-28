@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.qateralong.boost.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "BlockEntityRenderDispatcherMixin",
+    "BoundTickingBlockEntityMixin",
+    "ClientLevelMixin",
+    "DebugScreenOverlayMixin",
+    "EntityRenderDispatcherMixin",
+    "EntityRendererMixin",
+    "ItemFrameRendererMixin",
+    "LevelRendererMixin",
+    "LivingEntityRendererMixin",
+    "ParticleEngineMixin",
+    "SignRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

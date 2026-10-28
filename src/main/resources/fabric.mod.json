@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "boost",
+  "version": "${version}",
+  "name": "Boost",
+  "description": "Client: per-type distance culling of entities and block entities, occlusion by visible sections, far-detail LOD (armor, held items, shadows, name tags, sign text, frame contents), particle frustum culling and cap, client tick LOD for far block entities and items.",
+  "authors": [
+    "qateralong"
+  ],
+  "license": "All Rights Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.qateralong.boost.Boost"
+    ],
+    "modmenu": [
+      "com.qateralong.boost.ModMenu"
+    ]
+  },
+  "mixins": [
+    "boost.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
