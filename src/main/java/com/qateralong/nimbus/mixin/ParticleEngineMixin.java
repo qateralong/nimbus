@@ -1,8 +1,8 @@
-package com.qateralong.boost.mixin;
+package com.qateralong.nimbus.mixin;
 
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.qateralong.boost.Cull;
+import com.qateralong.nimbus.Cull;
 import java.util.Map;
 import java.util.Queue;
 import net.minecraft.client.Camera;
@@ -28,19 +28,19 @@ public abstract class ParticleEngineMixin {
 
     @WrapWithCondition(method = "render", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/particle/Particle;render(Lcom/mojang/blaze3d/vertex/VertexConsumer;Lnet/minecraft/client/Camera;F)V"))
-    private boolean boost$cull(Particle particle, VertexConsumer consumer, Camera camera, float partialTick) {
+    private boolean nimbus$cull(Particle particle, VertexConsumer consumer, Camera camera, float partialTick) {
         return Cull.particleVisible(particle);
     }
 
     @Inject(method = "add(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
-    private void boost$limit(Particle particle, CallbackInfo ci) {
+    private void nimbus$limit(Particle particle, CallbackInfo ci) {
         if (!Cull.acceptParticle()) {
             ci.cancel();
         }
     }
 
     @Inject(method = "tick", at = @At("RETURN"))
-    private void boost$count(CallbackInfo ci) {
+    private void nimbus$count(CallbackInfo ci) {
         int count = this.particlesToAdd.size();
         for (Queue<Particle> queue : this.particles.values()) {
             count += queue.size();

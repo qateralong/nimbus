@@ -1,6 +1,6 @@
-package com.qateralong.boost.mixin;
+package com.qateralong.nimbus.mixin;
 
-import com.qateralong.boost.Cull;
+import com.qateralong.nimbus.Cull;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,7 +16,7 @@ public abstract class BoundTickingBlockEntityMixin {
     private BlockEntity blockEntity;
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
-    private void boost$tick(CallbackInfo ci) {
+    private void nimbus$tick(CallbackInfo ci) {
         if (!Cull.tickBlockEntity(this.blockEntity)) {
             ci.cancel();
         }

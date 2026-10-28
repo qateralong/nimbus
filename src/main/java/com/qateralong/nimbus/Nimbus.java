@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
@@ -10,27 +10,27 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Boost implements ClientModInitializer {
-    public static final Logger LOGGER = LoggerFactory.getLogger("boost");
+public class Nimbus implements ClientModInitializer {
+    public static final Logger LOGGER = LoggerFactory.getLogger("nimbus");
     private static KeyMapping toggle;
     private static KeyMapping settings;
 
     @Override
     public void onInitializeClient() {
-        BoostConfig.get();
-        toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.boost.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.boost"));
-        settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.boost.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.boost"));
+        NimbusConfig.get();
+        toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
+        settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggle.consumeClick()) {
-                BoostConfig config = BoostConfig.get();
+                NimbusConfig config = NimbusConfig.get();
                 config.enabled = !config.enabled;
                 config.save();
                 if (client.player != null) {
-                    client.player.displayClientMessage(Component.translatable(config.enabled ? "boost.on" : "boost.off"), true);
+                    client.player.displayClientMessage(Component.translatable(config.enabled ? "nimbus.on" : "nimbus.off"), true);
                 }
             }
             while (settings.consumeClick()) {
-                client.setScreen(new BoostScreen(client.screen));
+                client.setScreen(new NimbusScreen(client.screen));
             }
             Cull.adapt(client.getFps());
             Bench.tick(client);

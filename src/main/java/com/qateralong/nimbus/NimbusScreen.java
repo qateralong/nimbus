@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,14 +13,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
-public class BoostScreen extends Screen {
+public class NimbusScreen extends Screen {
     private static final int ROW = 22;
     private final Screen parent;
     private int scroll;
     private int contentHeight;
 
-    public BoostScreen(Screen parent) {
-        super(Component.translatable("boost.title"));
+    public NimbusScreen(Screen parent) {
+        super(Component.translatable("nimbus.title"));
         this.parent = parent;
     }
 
@@ -29,7 +29,7 @@ public class BoostScreen extends Screen {
 
     @Override
     protected void init() {
-        BoostConfig c = BoostConfig.get();
+        NimbusConfig c = NimbusConfig.get();
         int width = Math.min(310, this.width / 2 - 14);
         int left = this.width / 2 - width - 4;
         int right = this.width / 2 + 4;
@@ -71,10 +71,10 @@ public class BoostScreen extends Screen {
                 this.addRenderableWidget(slider(option, x, y, width));
             } else if (item instanceof Toggle toggle) {
                 CycleButton<Boolean> button = CycleButton.onOffBuilder(toggle.get().getAsInt() == 1)
-                        .withTooltip(value -> Tooltip.create(Component.translatable("boost.option." + toggle.key() + ".tip")))
-                        .create(x, y, width, 20, Component.translatable("boost.option." + toggle.key()), (b, value) -> {
+                        .withTooltip(value -> Tooltip.create(Component.translatable("nimbus.option." + toggle.key() + ".tip")))
+                        .create(x, y, width, 20, Component.translatable("nimbus.option." + toggle.key()), (b, value) -> {
                             toggle.set().accept(value ? 1 : 0);
-                            BoostConfig.get().save();
+                            NimbusConfig.get().save();
                         });
                 this.addRenderableWidget(button);
             }
@@ -104,9 +104,9 @@ public class BoostScreen extends Screen {
             @Override
             protected void updateMessage() {
                 int value = current();
-                Component shown = value == 0 && option.zeroOff() ? Component.translatable(option.key().equals("target_fps") ? "options.off" : "boost.unlimited")
-                        : Component.literal(option.key().equals("max_particles") ? String.valueOf(value) : option.key().equals("target_fps") ? value + " FPS" : value + " " + Component.translatable("boost.blocks").getString());
-                this.setMessage(Component.translatable("boost.option." + option.key()).append(": ").append(shown));
+                Component shown = value == 0 && option.zeroOff() ? Component.translatable(option.key().equals("target_fps") ? "options.off" : "nimbus.unlimited")
+                        : Component.literal(option.key().equals("max_particles") ? String.valueOf(value) : option.key().equals("target_fps") ? value + " FPS" : value + " " + Component.translatable("nimbus.blocks").getString());
+                this.setMessage(Component.translatable("nimbus.option." + option.key()).append(": ").append(shown));
             }
 
             @Override
@@ -117,10 +117,10 @@ public class BoostScreen extends Screen {
             @Override
             public void onRelease(double mouseX, double mouseY) {
                 super.onRelease(mouseX, mouseY);
-                BoostConfig.get().save();
+                NimbusConfig.get().save();
             }
         };
-        slider.setTooltip(Tooltip.create(Component.translatable("boost.option." + option.key() + ".tip")));
+        slider.setTooltip(Tooltip.create(Component.translatable("nimbus.option." + option.key() + ".tip")));
         return slider;
     }
 
@@ -143,7 +143,7 @@ public class BoostScreen extends Screen {
 
     @Override
     public void onClose() {
-        BoostConfig.get().save();
+        NimbusConfig.get().save();
         this.minecraft.setScreen(this.parent);
     }
 }

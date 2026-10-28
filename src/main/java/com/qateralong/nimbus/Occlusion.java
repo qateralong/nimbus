@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -37,7 +37,7 @@ public final class Occlusion {
     }
 
     static {
-        WORKER = new Thread(Occlusion::loop, "Boost occlusion");
+        WORKER = new Thread(Occlusion::loop, "Nimbus occlusion");
         WORKER.setDaemon(true);
         WORKER.setPriority(Thread.NORM_PRIORITY - 1);
         WORKER.start();
@@ -47,7 +47,7 @@ public final class Occlusion {
     }
 
     static boolean enabled() {
-        return BoostConfig.get().occlusionCulling;
+        return NimbusConfig.get().occlusionCulling;
     }
 
     public static boolean entityHidden(int id, AABB box) {
@@ -115,7 +115,7 @@ public final class Occlusion {
             try {
                 compute(targets, x, y, z);
             } catch (Throwable t) {
-                Boost.LOGGER.debug("Occlusion pass failed", t);
+                Nimbus.LOGGER.debug("Occlusion pass failed", t);
             } finally {
                 BUSY.set(false);
             }

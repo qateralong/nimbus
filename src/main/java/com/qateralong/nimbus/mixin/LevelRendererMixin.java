@@ -1,6 +1,6 @@
-package com.qateralong.boost.mixin;
+package com.qateralong.nimbus.mixin;
 
-import com.qateralong.boost.Cull;
+import com.qateralong.nimbus.Cull;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -28,14 +28,14 @@ public abstract class LevelRendererMixin {
     private ObjectArrayList<SectionRenderDispatcher.RenderSection> visibleSections;
 
     @Inject(method = "renderLevel", at = @At("HEAD"))
-    private void boost$frame(DeltaTracker delta, boolean outline, Camera camera, GameRenderer renderer, LightTexture light, Matrix4f view, Matrix4f projection,
+    private void nimbus$frame(DeltaTracker delta, boolean outline, Camera camera, GameRenderer renderer, LightTexture light, Matrix4f view, Matrix4f projection,
                              CallbackInfo ci) {
         Vec3 position = camera.getPosition();
         Cull.beginFrame(position.x, position.y, position.z, this.visibleSections);
     }
 
     @Inject(method = "prepareCullFrustum", at = @At("RETURN"))
-    private void boost$frustum(Vec3 position, Matrix4f view, Matrix4f projection, CallbackInfo ci) {
+    private void nimbus$frustum(Vec3 position, Matrix4f view, Matrix4f projection, CallbackInfo ci) {
         Cull.frustum = this.cullingFrustum;
     }
 }

@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -10,7 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 
 final class Bench {
-    private static final String MODE = System.getProperty("boost.bench");
+    private static final String MODE = System.getProperty("nimbus.bench");
     private static final int SETTLE = 300;
     private static final int PHASE = 300;
     private static final String[] PHASES = {"off", "on", "off", "on"};
@@ -24,8 +24,18 @@ final class Bench {
     private Bench() {
     }
 
+    private static int waiting;
+
     static void tick(Minecraft client) {
-        if (MODE == null || client.player == null || client.getSingleplayerServer() == null) {
+        if (MODE == null) {
+            return;
+        }
+        if (client.player == null || client.getSingleplayerServer() == null) {
+            if (++waiting % 200 == 0) {
+                Nimbus.LOGGER.info("BENCH waiting on screen {}", client.screen == null ? "none" : client.screen.getClass().getName());
+                net.minecraft.client.Screenshot.grab(client.gameDirectory, "bench-wait.png", client.getMainRenderTarget(), message -> {
+                });
+            }
             return;
         }
         if (!hooked) {
@@ -38,10 +48,10 @@ final class Bench {
             if (ticks == 40) {
                 client.options.guiScale().set(3);
                 client.resizeDisplay();
-                client.setScreen(new BoostScreen(null));
+                client.setScreen(new NimbusScreen(null));
             }
             if (ticks == 80) {
-                net.minecraft.client.Screenshot.grab(client.gameDirectory, "boost-screen.png", client.getMainRenderTarget(), message -> {
+                net.minecraft.client.Screenshot.grab(client.gameDirectory, "nimbus-screen.png", client.getMainRenderTarget(), message -> {
                 });
             }
             if (ticks == 100) {
@@ -78,7 +88,7 @@ final class Bench {
                 report(client);
                 return;
             }
-            BoostConfig.get().enabled = PHASES[phase].equals("on");
+            NimbusConfig.get().enabled = PHASES[phase].equals("on");
             Cull.reload();
             FRAMES.clear();
             lastFrame = 0;
@@ -114,7 +124,7 @@ final class Bench {
         double median = 1e9 / times[times.length / 2];
         String line = String.format(Locale.ROOT, "%s: avg %.1f fps, median %.1f, 1%% low %.1f, frames %d | %s", name, avg, median, low, times.length, Cull.last);
         RESULTS.add(line);
-        Boost.LOGGER.info("BENCH {}", line);
+        Nimbus.LOGGER.info("BENCH {}", line);
     }
 
     private static void report(Minecraft client) {
@@ -122,10 +132,10 @@ final class Bench {
         try {
             Files.writeString(client.gameDirectory.toPath().resolve("bench-" + MODE + ".txt"), text);
         } catch (Exception e) {
-            Boost.LOGGER.warn("bench write failed", e);
+            Nimbus.LOGGER.warn("bench write failed", e);
         }
-        Boost.LOGGER.info("BENCH DONE\n{}", text);
-        BoostConfig.get().enabled = true;
+        Nimbus.LOGGER.info("BENCH DONE\n{}", text);
+        NimbusConfig.get().enabled = true;
         client.stop();
     }
 
@@ -143,7 +153,7 @@ final class Bench {
         commands.add("fill -48 -61 -60 48 -61 160 grass_block");
         for (int z = 8; z <= 92; z += 4) {
             commands.add("fill -40 -60 " + z + " 40 -60 " + z
-                    + " oak_sign{front_text:{messages:['\"Boost\"','\"bench\"','\"line three\"','\"" + z + "\"']}}");
+                    + " oak_sign{front_text:{messages:['\"Nimbus\"','\"bench\"','\"line three\"','\"" + z + "\"']}}");
         }
         commands.add("fill -40 -60 96 40 -60 96 chest");
         commands.add("fill -44 -60 98 44 -51 98 stone_bricks");

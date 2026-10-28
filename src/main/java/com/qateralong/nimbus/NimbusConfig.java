@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -12,10 +12,10 @@ import java.util.List;
 import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 
-public final class BoostConfig {
+public final class NimbusConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("boost.json");
-    private static BoostConfig instance;
+    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("nimbus.json");
+    private static NimbusConfig instance;
 
     public boolean enabled = true;
     public boolean sectionCulling = true;
@@ -48,20 +48,20 @@ public final class BoostConfig {
     public int targetFps = 0;
     public boolean debugLine = true;
 
-    public static BoostConfig get() {
+    public static NimbusConfig get() {
         if (instance == null) {
-            instance = new BoostConfig();
+            instance = new NimbusConfig();
             try {
                 if (Files.exists(FILE)) {
                     try (Reader reader = Files.newBufferedReader(FILE)) {
-                        BoostConfig loaded = GSON.fromJson(reader, BoostConfig.class);
+                        NimbusConfig loaded = GSON.fromJson(reader, NimbusConfig.class);
                         if (loaded != null) {
                             instance = loaded;
                         }
                     }
                 }
             } catch (Exception e) {
-                Boost.LOGGER.warn("Failed to read boost.json", e);
+                Nimbus.LOGGER.warn("Failed to read nimbus.json", e);
             }
             instance.save();
             Cull.reload();
@@ -73,7 +73,7 @@ public final class BoostConfig {
         try (Writer writer = Files.newBufferedWriter(FILE)) {
             GSON.toJson(this, writer);
         } catch (Exception e) {
-            Boost.LOGGER.warn("Failed to write boost.json", e);
+            Nimbus.LOGGER.warn("Failed to write nimbus.json", e);
         }
         Cull.reload();
     }

@@ -1,4 +1,4 @@
-package com.qateralong.boost;
+package com.qateralong.nimbus;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
@@ -65,9 +65,9 @@ public final class Cull {
     }
 
     public static void beginFrame(double x, double y, double z, List<SectionRenderDispatcher.RenderSection> visible) {
-        BoostConfig config = BoostConfig.get();
+        NimbusConfig config = NimbusConfig.get();
         active = config.enabled;
-        last = (scale < 0.999 ? String.format("[%.0f%%] ", scale * 100) : "") + String.format("Boost: сущн. %d/%d · БС %d/%d · частицы %d/%d · тиков %d · лучи %d/%d за %.1f мс",
+        last = (scale < 0.999 ? String.format("[%.0f%%] ", scale * 100) : "") + String.format("Nimbus: сущн. %d/%d · БС %d/%d · частицы %d/%d · тиков %d · лучи %d/%d за %.1f мс",
                 entitiesCulled, entitiesSeen, blockEntitiesCulled, blockEntitiesSeen, particlesCulled, particlesSeen, ticksShown,
                 Occlusion.lastHidden, Occlusion.lastTargets, Occlusion.lastNanos / 1e6);
         if (active) {
@@ -105,7 +105,7 @@ public final class Cull {
     }
 
     public static void adapt(int fps) {
-        int target = BoostConfig.get().targetFps;
+        int target = NimbusConfig.get().targetFps;
         long now = System.currentTimeMillis();
         if (now - lastAdapt < 1000) {
             return;
@@ -131,7 +131,7 @@ public final class Cull {
         if (limit >= 0) {
             return limit;
         }
-        BoostConfig config = BoostConfig.get();
+        NimbusConfig config = NimbusConfig.get();
         int blocks;
         if (entity instanceof Player || entity instanceof EnderDragon || entity instanceof WitherBoss) {
             blocks = 0;
@@ -179,7 +179,7 @@ public final class Cull {
             return false;
         }
         AABB box = entity.getBoundingBox();
-        if (BoostConfig.get().sectionCulling && !sectionVisible(box)) {
+        if (NimbusConfig.get().sectionCulling && !sectionVisible(box)) {
             entitiesCulled++;
             return false;
         }
@@ -227,17 +227,17 @@ public final class Cull {
         if (!active || entity == Minecraft.getInstance().getCameraEntity()) {
             return true;
         }
-        int blocks = BoostConfig.get().detailDistance * (entity instanceof Player ? 2 : 1);
+        int blocks = NimbusConfig.get().detailDistance * (entity instanceof Player ? 2 : 1);
         return blocks <= 0 || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks;
     }
 
     public static boolean shadowVisible(Entity entity) {
-        int blocks = BoostConfig.get().shadowDistance;
+        int blocks = NimbusConfig.get().shadowDistance;
         return !active || blocks <= 0 || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks;
     }
 
     public static boolean nameTagVisible(Entity entity) {
-        int blocks = BoostConfig.get().nameTagDistance;
+        int blocks = NimbusConfig.get().nameTagDistance;
         return !active || blocks <= 0 || entity instanceof Player || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks;
     }
 
@@ -246,7 +246,7 @@ public final class Cull {
         if (limit >= 0) {
             return limit;
         }
-        BoostConfig config = BoostConfig.get();
+        NimbusConfig config = NimbusConfig.get();
         var key = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(type);
         Integer blocks = key == null ? null : config.blockEntityDistances.get(key.toString());
         limit = square(blocks == null ? config.blockEntityDistance : blocks);
@@ -281,7 +281,7 @@ public final class Cull {
     }
 
     public static boolean particleVisible(Particle particle) {
-        if (!active || !BoostConfig.get().particleCulling) {
+        if (!active || !NimbusConfig.get().particleCulling) {
             return true;
         }
         particlesSeen++;
@@ -289,7 +289,7 @@ public final class Cull {
         double x = (box.minX + box.maxX) * 0.5;
         double y = (box.minY + box.maxY) * 0.5;
         double z = (box.minZ + box.maxZ) * 0.5;
-        int blocks = (int) Math.round(BoostConfig.get().particleDistance * scale);
+        int blocks = (int) Math.round(NimbusConfig.get().particleDistance * scale);
         if (blocks > 0 && distanceSq(x, y, z) > (double) blocks * blocks) {
             particlesCulled++;
             return false;
@@ -302,7 +302,7 @@ public final class Cull {
     }
 
     public static boolean acceptParticle() {
-        int max = BoostConfig.get().maxParticles;
+        int max = NimbusConfig.get().maxParticles;
         if (!active || max <= 0) {
             return true;
         }
@@ -317,12 +317,12 @@ public final class Cull {
         if (!active || blockEntity.getLevel() == null || !blockEntity.getLevel().isClientSide()) {
             return true;
         }
-        int blocks = BoostConfig.get().blockEntityTickDistance;
+        int blocks = NimbusConfig.get().blockEntityTickDistance;
         if (blocks <= 0) {
             return true;
         }
         if (ALWAYS_TICK.isEmpty()) {
-            for (String id : BoostConfig.get().alwaysTick) {
+            for (String id : NimbusConfig.get().alwaysTick) {
                 BuiltInRegistries.BLOCK_ENTITY_TYPE.getOptional(net.minecraft.resources.ResourceLocation.tryParse(id)).ifPresent(ALWAYS_TICK::add);
             }
             ALWAYS_TICK.add(null);
@@ -342,7 +342,7 @@ public final class Cull {
         if (!active || !(entity instanceof ItemEntity || entity instanceof ExperienceOrb || entity instanceof ArmorStand) || exempt(entity)) {
             return true;
         }
-        int blocks = BoostConfig.get().entityTickDistance;
+        int blocks = NimbusConfig.get().entityTickDistance;
         if (blocks <= 0 || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks) {
             return true;
         }
