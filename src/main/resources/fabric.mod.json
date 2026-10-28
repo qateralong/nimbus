@@ -3,7 +3,7 @@
   "id": "nimbus",
   "version": "${version}",
   "name": "Nimbus",
-  "description": "Client: per-type distance culling of entities and block entities, occlusion by visible sections, far-detail LOD (armor, held items, shadows, name tags, sign text, frame contents), particle frustum culling and cap, client tick LOD for far block entities and items.",
+  "description": "Client optimization: per-type entity/block entity culling, async ray occlusion, far LOD, particle culling and per-type toggles, client tick LOD, world resolution scaling with CAS sharpening, adaptive quality, borderless fullscreen, CPU render-ahead limit, extended graphics settings with Sacrifice presets.",
   "authors": [
     "qateralong"
   ],

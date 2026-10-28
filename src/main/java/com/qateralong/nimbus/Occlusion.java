@@ -77,7 +77,7 @@ public final class Occlusion {
             }
             return;
         }
-        if (now - lastSubmit < INTERVAL || BUSY.get()) {
+        if (now - lastSubmit < INTERVAL || BUSY.get() || collecting.isEmpty() && hiddenEntities.isEmpty() && hiddenBlocks.isEmpty()) {
             collecting.clear();
             return;
         }

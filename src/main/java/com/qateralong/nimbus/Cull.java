@@ -38,6 +38,7 @@ public final class Cull {
     private static boolean sectionsDirty = true;
     private static boolean sectionsUsable;
 
+    private static final boolean DEBUG_ALWAYS = System.getProperty("nimbus.bench") != null;
     public static boolean active;
     public static double camX;
     public static double camY;
@@ -67,9 +68,15 @@ public final class Cull {
     public static void beginFrame(double x, double y, double z, List<SectionRenderDispatcher.RenderSection> visible) {
         NimbusConfig config = NimbusConfig.get();
         active = config.enabled;
-        last = (scale < 0.999 ? String.format("[%.0f%%] ", scale * 100) : "") + String.format("Nimbus: сущн. %d/%d · БС %d/%d · частицы %d/%d · тиков %d · лучи %d/%d за %.1f мс",
-                entitiesCulled, entitiesSeen, blockEntitiesCulled, blockEntitiesSeen, particlesCulled, particlesSeen, ticksShown,
-                Occlusion.lastHidden, Occlusion.lastTargets, Occlusion.lastNanos / 1e6);
+        it.unimi.dsi.fastutil.ints.IntOpenHashSet swap = hidden;
+        hidden = hiddenNext;
+        hiddenNext = swap;
+        hiddenNext.clear();
+        if (DEBUG_ALWAYS || Minecraft.getInstance().getDebugOverlay().showDebugScreen()) {
+            last = (scale < 0.999 || resolution < 0.999 ? String.format("[дальность %.0f%%, разрешение %.0f%%] ", scale * 100, resolution * 100) : "") + String.format("Nimbus: сущн. %d/%d · БС %d/%d · частицы %d/%d · тиков %d · лучи %d/%d за %.1f мс",
+                    entitiesCulled, entitiesSeen, blockEntitiesCulled, blockEntitiesSeen, particlesCulled, particlesSeen, ticksShown,
+                    Occlusion.lastHidden, Occlusion.lastTargets, Occlusion.lastNanos / 1e6);
+        }
         if (active) {
             Occlusion.frame(x, y, z);
         }
@@ -94,6 +101,9 @@ public final class Cull {
     }
 
     public static double scale = 1.0;
+    public static double resolution = 1.0;
+    private static it.unimi.dsi.fastutil.ints.IntOpenHashSet hidden = new it.unimi.dsi.fastutil.ints.IntOpenHashSet();
+    private static it.unimi.dsi.fastutil.ints.IntOpenHashSet hiddenNext = new it.unimi.dsi.fastutil.ints.IntOpenHashSet();
     private static long lastAdapt;
 
     private static int square(int blocks) {
@@ -112,13 +122,25 @@ public final class Cull {
         }
         lastAdapt = now;
         double next = scale;
+        double res = resolution;
+        boolean adaptiveRes = NimbusConfig.get().adaptiveResolution;
         if (target <= 0 || !active) {
             next = 1.0;
+            res = 1.0;
         } else if (fps < target * 0.95) {
-            next = Math.max(0.5, scale - 0.1);
+            if (scale > 0.5 + 1e-6) {
+                next = Math.max(0.5, scale - 0.1);
+            } else if (adaptiveRes) {
+                res = Math.max(0.6, resolution - 0.05);
+            }
         } else if (fps > target * 1.25) {
-            next = Math.min(1.0, scale + 0.05);
+            if (resolution < 0.999) {
+                res = Math.min(1.0, resolution + 0.05);
+            } else {
+                next = Math.min(1.0, scale + 0.05);
+            }
         }
+        resolution = adaptiveRes ? res : 1.0;
         if (Math.abs(next - scale) > 1e-6) {
             scale = next;
             reload();
@@ -173,18 +195,28 @@ public final class Cull {
         if (exempt(entity)) {
             return true;
         }
+        NimbusConfig config = NimbusConfig.get();
+        if (!config.renderFrames && entity instanceof ItemFrame || !config.renderArmorStands && entity instanceof ArmorStand
+                || !config.renderPaintings && entity instanceof Painting) {
+            entitiesCulled++;
+            hiddenNext.add(entity.getId());
+            return false;
+        }
         int limit = entityLimit(entity);
         if (limit != Integer.MAX_VALUE && distanceSq(entity.getX(), entity.getY(), entity.getZ()) > limit) {
             entitiesCulled++;
+            hiddenNext.add(entity.getId());
             return false;
         }
         AABB box = entity.getBoundingBox();
         if (NimbusConfig.get().sectionCulling && !sectionVisible(box)) {
             entitiesCulled++;
+            hiddenNext.add(entity.getId());
             return false;
         }
         if (box.getSize() < 24 && Occlusion.entityHidden(entity.getId(), box)) {
             entitiesCulled++;
+            hiddenNext.add(entity.getId());
             return false;
         }
         return true;
@@ -339,8 +371,16 @@ public final class Cull {
     }
 
     public static boolean tickEntity(Entity entity) {
-        if (!active || !(entity instanceof ItemEntity || entity instanceof ExperienceOrb || entity instanceof ArmorStand) || exempt(entity)) {
+        if (!active || exempt(entity) || entity instanceof Player) {
             return true;
+        }
+        if (!(entity instanceof ItemEntity || entity instanceof ExperienceOrb || entity instanceof ArmorStand)) {
+            if (!NimbusConfig.get().hiddenTickLod || !hidden.contains(entity.getId())
+                    || distanceSq(entity.getX(), entity.getY(), entity.getZ()) < 24 * 24 || (entity.getId() + entity.level().getGameTime()) % 3 == 0) {
+                return true;
+            }
+            ticksSkipped++;
+            return false;
         }
         int blocks = NimbusConfig.get().entityTickDistance;
         if (blocks <= 0 || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks) {

@@ -13,7 +13,7 @@ final class Bench {
     private static final String MODE = System.getProperty("nimbus.bench");
     private static final int SETTLE = 300;
     private static final int PHASE = 300;
-    private static final String[] PHASES = {"off", "on", "off", "on"};
+    private static final String[] PHASES = {"off", "on", "on70", "off", "on", "on70"};
     private static int ticks;
     private static int phase = -1;
     private static long lastFrame;
@@ -44,17 +44,39 @@ final class Bench {
         }
         ticks++;
         MinecraftServer server = client.getSingleplayerServer();
+        if ("scale".equals(MODE)) {
+            if (ticks == 20) {
+                client.options.hideGui = true;
+                build(server);
+                NimbusConfig.get().renderScale = 70;
+                NimbusConfig.get().sharpness = 60;
+            }
+            if (ticks == 200) {
+                net.minecraft.client.Screenshot.grab(client.gameDirectory, "scale-70.png", client.getMainRenderTarget(), message -> {
+                });
+            }
+            if (ticks == 220) {
+                NimbusConfig.get().renderScale = 100;
+                NimbusConfig.get().sharpness = 0;
+                client.stop();
+            }
+            return;
+        }
         if ("screen".equals(MODE)) {
+            String[] tabs = {"general", "quality", "particles", "entities", "performance"};
             if (ticks == 40) {
                 client.options.guiScale().set(3);
                 client.resizeDisplay();
-                client.setScreen(new NimbusScreen(null));
             }
-            if (ticks == 80) {
-                net.minecraft.client.Screenshot.grab(client.gameDirectory, "nimbus-screen.png", client.getMainRenderTarget(), message -> {
+            int index = (ticks - 40) / 30;
+            if (ticks >= 40 && (ticks - 40) % 30 == 0 && index < tabs.length) {
+                NimbusScreen.openTab(client, tabs[index]);
+            }
+            if (ticks >= 40 && (ticks - 40) % 30 == 20 && index < tabs.length) {
+                net.minecraft.client.Screenshot.grab(client.gameDirectory, "nimbus-" + tabs[index] + ".png", client.getMainRenderTarget(), message -> {
                 });
             }
-            if (ticks == 100) {
+            if (ticks == 40 + tabs.length * 30 + 10) {
                 client.stop();
             }
             return;
@@ -74,7 +96,7 @@ final class Bench {
             run(server, "particle minecraft:flame 0 -57 -40 25 2 25 0 400 force");
             run(server, "particle minecraft:campfire_cosy_smoke 0 -55 120 30 3 10 0 60 force");
         }
-        if (phase >= 0 && phase < 2 && ticks == SETTLE + phase * PHASE + PHASE / 2) {
+        if (phase >= 0 && phase < 3 && ticks == SETTLE + phase * PHASE + PHASE / 2) {
             net.minecraft.client.Screenshot.grab(client.gameDirectory, "bench-" + MODE + "-" + PHASES[phase] + ".png", client.getMainRenderTarget(), message -> {
             });
         }
@@ -88,7 +110,8 @@ final class Bench {
                 report(client);
                 return;
             }
-            NimbusConfig.get().enabled = PHASES[phase].equals("on");
+            NimbusConfig.get().enabled = !PHASES[phase].equals("off");
+            NimbusConfig.get().renderScale = PHASES[phase].equals("on70") ? 70 : 100;
             Cull.reload();
             FRAMES.clear();
             lastFrame = 0;
@@ -136,6 +159,7 @@ final class Bench {
         }
         Nimbus.LOGGER.info("BENCH DONE\n{}", text);
         NimbusConfig.get().enabled = true;
+        NimbusConfig.get().renderScale = 100;
         client.stop();
     }
 
@@ -181,7 +205,7 @@ final class Bench {
         for (int i = 0; i < 160; i++) {
             int x = -40 + (i * 13) % 81;
             int z = 100 + (i * 7) % 45;
-            commands.add("summon zombie " + x + " -60 " + z
+            commands.add("summon husk " + x + " -60 " + z
                     + " {NoAI:1b,PersistenceRequired:1b,Silent:1b,ArmorItems:[{},{},{id:\"iron_chestplate\",count:1},{id:\"golden_helmet\",count:1}],HandItems:[{id:\"iron_axe\",count:1},{}]}");
         }
         commands.add("tp @p 0 -57 -12 0 8");

@@ -32,7 +32,7 @@ dependencies {
 loom {
     runs.configureEach { ideConfigGenerated(false) }
     runs.named("client") {
-        vmArg("-Xmx2560M")
+        vmArg("-Xmx2G")
         if (project.hasProperty("bench")) {
             vmArg("-Dnimbus.bench=${project.property("bench").toString().ifEmpty { "1" }}")
         }

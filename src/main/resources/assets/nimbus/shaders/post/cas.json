@@ -1,0 +1,7 @@
+{
+  "targets": ["swap"],
+  "passes": [
+    { "name": "nimbus_cas", "intarget": "minecraft:main", "outtarget": "swap" },
+    { "name": "blit", "intarget": "swap", "outtarget": "minecraft:main" }
+  ]
+}

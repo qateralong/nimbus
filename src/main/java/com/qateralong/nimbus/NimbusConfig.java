@@ -46,6 +46,33 @@ public final class NimbusConfig {
     public List<String> alwaysTick = new ArrayList<>(List.of("minecraft:beacon", "minecraft:end_gateway", "minecraft:jukebox"));
     public int entityTickDistance = 48;
     public int targetFps = 0;
+    public boolean adaptiveResolution = true;
+    public int renderScale = 100;
+    public boolean sharpUpscale = false;
+    public int sharpness = 0;
+    public boolean hiddenTickLod = true;
+    public boolean borderlessFullscreen = true;
+    public boolean sky = true;
+    public boolean fog = true;
+    public boolean weather = true;
+    public boolean vignette = true;
+    public boolean beaconBeams = true;
+    public boolean animatedTextures = true;
+    public boolean blockBreakParticles = true;
+    public int renderAhead = 0;
+    public String preset = "none";
+    public boolean sunMoon = true;
+    public boolean stars = true;
+    public int cloudHeight = 0;
+    public int fogDistance = 100;
+    public boolean renderFrames = true;
+    public boolean renderArmorStands = true;
+    public boolean renderPaintings = true;
+    public boolean toasts = true;
+    public boolean steadyDebug = true;
+    public int fpsOverlay = 0;
+    public List<String> disabledParticles = new ArrayList<>();
+    public List<String> disabledAnimations = new ArrayList<>();
     public boolean debugLine = true;
 
     public static NimbusConfig get() {
