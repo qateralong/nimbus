@@ -23,10 +23,20 @@ public abstract class SignRendererMixin {
         }
         NimbusConfig config = NimbusConfig.get();
         var minecraft = net.minecraft.client.Minecraft.getInstance();
-        if (config.enabled && config.signBackCulling && minecraft.level != null && minecraft.player != null && !minecraft.options.getCameraType().isMirrored()
-                && minecraft.level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign
-                && sign.isFacingFrontText(minecraft.player) != front) {
-            ci.cancel();
+        if (config.enabled && config.signBackCulling && minecraft.level != null
+                && minecraft.level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.SignBlock sign) {
+            var state = minecraft.level.getBlockState(pos);
+            var center = sign.getSignHitboxCenterPosition(state);
+            double dx = Cull.camX - (pos.getX() + center.x);
+            double dz = Cull.camZ - (pos.getZ() + center.z);
+            if (dx * dx + dz * dz < 0.25) {
+                return;
+            }
+            float angle = (float) (net.minecraft.util.Mth.atan2(dz, dx) * 57.2957763671875) - 90.0F;
+            float difference = net.minecraft.util.Mth.degreesDifferenceAbs(sign.getYRotationDegrees(state), angle);
+            if (front ? difference > 100.0F : difference < 80.0F) {
+                ci.cancel();
+            }
         }
     }
 }

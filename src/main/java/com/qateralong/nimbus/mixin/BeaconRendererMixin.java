@@ -28,7 +28,7 @@ public abstract class BeaconRendererMixin {
         }
         if (config.beaconCulling && Cull.frustum != null && beacon.getLevel() != null) {
             BlockPos pos = beacon.getBlockPos();
-            AABB column = new AABB(pos.getX() - 1, pos.getY(), pos.getZ() - 1, pos.getX() + 2, beacon.getLevel().getMaxBuildHeight() + 1, pos.getZ() + 2);
+            AABB column = new AABB(pos.getX() - 1, pos.getY(), pos.getZ() - 1, pos.getX() + 2, pos.getY() + net.minecraft.client.renderer.blockentity.BeaconRenderer.MAX_RENDER_Y, pos.getZ() + 2);
             if (!Cull.frustum.isVisible(column)) {
                 ci.cancel();
             }

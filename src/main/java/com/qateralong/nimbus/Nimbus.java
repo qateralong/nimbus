@@ -16,11 +16,14 @@ import org.slf4j.LoggerFactory;
 
 public class Nimbus implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("nimbus");
+    public static int ticks = 1;
+    public static int frames;
     private static KeyMapping toggle;
     private static KeyMapping settings;
 
     @Override
     public void onInitializeClient() {
+        Startup.reloadBegin();
         NimbusConfig.get();
         if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("enhancedblockentities")) {
             net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("nimbus").ifPresent(container -> Chests.available =
@@ -28,22 +31,45 @@ public class Nimbus implements ClientModInitializer {
                             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nimbus", "chests"), container,
                             Component.literal("Nimbus: сундуки"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
             net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin.register(plugin -> plugin.modifyModelAfterBake().register((model, context) -> {
+                net.minecraft.client.resources.model.BakedModel entityBlock = com.qateralong.nimbus.render.EntityBlocks.bake(context.topLevelId(), model, context.textureGetter());
+                if (entityBlock != null) {
+                    return entityBlock;
+                }
                 var id = context.resourceId();
                 return id != null && id.getNamespace().equals("nimbus") && id.getPath().startsWith("block/") && id.getPath().contains("chest_")
                         && !id.getPath().contains("template") ? new ChestModel(model) : model;
             }));
             net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Chests.reset());
+            net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE.putBlock(net.minecraft.world.level.block.Blocks.SHULKER_BOX,
+                    net.minecraft.client.renderer.RenderType.cutout());
+            for (net.minecraft.world.level.block.Block block : net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
+                if (block instanceof net.minecraft.world.level.block.SignBlock
+                        && net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).getNamespace().equals("minecraft")) {
+                    net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE.putBlock(block, net.minecraft.client.renderer.RenderType.cutout());
+                }
+            }
+            for (net.minecraft.world.item.DyeColor color : net.minecraft.world.item.DyeColor.values()) {
+                net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap.INSTANCE.putBlock(
+                        net.minecraft.world.level.block.ShulkerBoxBlock.getBlockByColor(color), net.minecraft.client.renderer.RenderType.cutout());
+            }
         }
         toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            if (screen instanceof net.minecraft.client.gui.screens.TitleScreen) {
+                Startup.titleScreen();
+            }
             if (screen instanceof OptionsScreen) {
                 Screens.getButtons(screen).add(Button.builder(Component.literal("Nimbus"), b -> client.setScreen(new NimbusScreen(screen)))
                         .bounds(width - 84, 6, 78, 20).build());
             }
         });
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((graphics, delta) -> FpsOverlay.render(graphics));
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> com.qateralong.nimbus.render.Terrain.init());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            ticks++;
+            BiomeCache.tick();
+            Chests.tick();
             while (toggle.consumeClick()) {
                 NimbusConfig config = NimbusConfig.get();
                 config.enabled = !config.enabled;

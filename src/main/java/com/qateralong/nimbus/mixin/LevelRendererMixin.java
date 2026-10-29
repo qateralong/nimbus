@@ -34,6 +34,11 @@ public abstract class LevelRendererMixin {
         Cull.beginFrame(position.x, position.y, position.z, this.visibleSections);
     }
 
+    @Inject(method = "setupRender", at = @At("RETURN"))
+    private void nimbus$sync(Camera camera, Frustum frustum, boolean hasCapturedFrustum, boolean spectator, CallbackInfo ci) {
+        com.qateralong.nimbus.render.Visibility.sync(this.visibleSections);
+    }
+
     @Inject(method = "prepareCullFrustum", at = @At("RETURN"))
     private void nimbus$frustum(Vec3 position, Matrix4f view, Matrix4f projection, CallbackInfo ci) {
         Cull.frustum = this.cullingFrustum;

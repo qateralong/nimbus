@@ -1,6 +1,5 @@
 package com.qateralong.nimbus;
 
-import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -29,7 +28,7 @@ public final class FpsOverlay {
         if (!config.enabled || config.fpsOverlay == 0 || minecraft.getDebugOverlay().showDebugScreen()) {
             return;
         }
-        String text = String.format(Locale.ROOT, "%d FPS · мин %d", minecraft.getFps(), shownMin);
+        String text = net.minecraft.client.resources.language.I18n.get("nimbus.overlay.fps", minecraft.getFps(), shownMin);
         int width = minecraft.font.width(text);
         int x = config.fpsOverlay == 2 ? graphics.guiWidth() - width - 4 : 4;
         graphics.fill(x - 2, 2, x + width + 2, 13, 0x90000000);

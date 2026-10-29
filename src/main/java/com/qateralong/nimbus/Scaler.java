@@ -3,14 +3,12 @@ package com.qateralong.nimbus;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.GraphicsStatus;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
 public final class Scaler {
-    private static final boolean IRIS = FabricLoader.getInstance().isModLoaded("iris");
     private static RenderTarget target;
     private static boolean active;
 
@@ -40,24 +38,14 @@ public final class Scaler {
             return 1.0;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.options.graphicsMode().get() == GraphicsStatus.FABULOUS || IRIS && shadersOn()) {
+        if (minecraft.options.graphicsMode().get() == GraphicsStatus.FABULOUS || Compat.shadersOn()) {
             return 1.0;
         }
         return scale;
     }
 
     public static boolean shadersActive() {
-        return IRIS && shadersOn();
-    }
-
-    private static boolean shadersOn() {
-        try {
-            Class<?> api = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object instance = api.getMethod("getInstance").invoke(null);
-            return (boolean) api.getMethod("isShaderPackInUse").invoke(instance);
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            return true;
-        }
+        return Compat.shadersOn();
     }
 
     public static void begin() {

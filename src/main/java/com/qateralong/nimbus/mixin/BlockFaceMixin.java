@@ -17,6 +17,10 @@ public abstract class BlockFaceMixin {
     private static void nimbus$leaves(BlockState state, BlockGetter level, BlockPos pos, Direction face, BlockPos neighbour, CallbackInfoReturnable<Boolean> cir) {
         if (Leaves.hide(state, level, neighbour, face)) {
             cir.setReturnValue(false);
+            return;
+        }
+        if (state.isSolidRender(level, pos) && level.getBlockState(neighbour).isSolidRender(level, neighbour)) {
+            cir.setReturnValue(false);
         }
     }
 }

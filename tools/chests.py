@@ -44,7 +44,7 @@ def write(path, data):
         json.dump(data, f, indent=1)
 
 write(os.path.join(ROOT, "pack.mcmeta"), {"pack": {"pack_format": 34, "description": "Nimbus chest models"}})
-write(os.path.join(ROOT, "assets/minecraft/atlases/blocks.json"), {"sources": [{"type": "directory", "source": "entity/chest", "prefix": "entity/chest/"}]})
+write(os.path.join(ROOT, "assets/minecraft/atlases/blocks.json"), {"sources": [{"type": "directory", "source": "entity/chest", "prefix": "entity/chest/"}, {"type": "directory", "source": "entity/bed", "prefix": "entity/bed/"}, {"type": "directory", "source": "entity/shulker", "prefix": "entity/shulker/"}, {"type": "directory", "source": "entity/signs", "prefix": "entity/signs/"}, {"type": "directory", "source": "entity/decorated_pot", "prefix": "entity/decorated_pot/"}]})
 for kind in ("single", "left", "right"):
     write(os.path.join(ROOT, f"assets/nimbus/models/block/template_chest_{kind}.json"),
           {"parent": "block/block", "texture_size": [64, 64], "textures": {"particle": "#particle"}, "elements": shape(kind)})

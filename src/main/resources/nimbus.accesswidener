@@ -1,0 +1,10 @@
+accessWidener v2 named
+accessible class net/minecraft/client/model/geom/ModelPart$Polygon
+accessible class net/minecraft/client/model/geom/ModelPart$Vertex
+accessible class net/minecraft/client/gui/font/providers/UnihexProvider$ByteContents
+accessible class net/minecraft/client/gui/font/providers/UnihexProvider$ShortContents
+accessible class net/minecraft/client/gui/font/providers/UnihexProvider$IntContents
+accessible method net/minecraft/client/gui/font/providers/UnihexProvider$ByteContents read (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
+accessible method net/minecraft/client/gui/font/providers/UnihexProvider$ShortContents read (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
+accessible method net/minecraft/client/gui/font/providers/UnihexProvider$IntContents read24 (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
+accessible method net/minecraft/client/gui/font/providers/UnihexProvider$IntContents read32 (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;

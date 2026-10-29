@@ -15,6 +15,17 @@ public abstract class DebugScreenOverlayMixin {
     private void nimbus$line(CallbackInfoReturnable<List<String>> cir) {
         if (NimbusConfig.get().debugLine) {
             cir.getReturnValue().add(NimbusConfig.get().enabled ? Cull.last : "Nimbus: выключен");
+            if (com.qateralong.nimbus.render.GpuTimer.frameMs > 0) {
+                cir.getReturnValue().add(String.format("Nimbus GPU: кадр %.2f мс, ландшафт %.2f мс", com.qateralong.nimbus.render.GpuTimer.frameMs,
+                        com.qateralong.nimbus.render.GpuTimer.terrainMs));
+            }
+            if (com.qateralong.nimbus.render.GuiBatch.merged > 0) {
+                cir.getReturnValue().add("Nimbus GUI: склеено " + com.qateralong.nimbus.render.GuiBatch.lastMerged + " картинок за кадр");
+            }
+            String terrain = com.qateralong.nimbus.render.Terrain.debug();
+            if (terrain != null) {
+                cir.getReturnValue().add(terrain);
+            }
         }
     }
 }

@@ -29,11 +29,14 @@ public final class Animations {
         return "other";
     }
 
-    public static TextureAtlasSprite.Ticker wrap(ResourceLocation name, TextureAtlasSprite.Ticker ticker) {
+    public static TextureAtlasSprite.Ticker wrap(ResourceLocation name, TextureAtlasSprite.Ticker ticker, int index) {
         String kind = kind(name);
         return new TextureAtlasSprite.Ticker() {
             @Override
             public void tickAndUpload() {
+                if (com.qateralong.nimbus.render.AnimatedSprites.skip(index)) {
+                    return;
+                }
                 NimbusConfig config = NimbusConfig.get();
                 if (!config.enabled || config.animatedTextures && !config.disabledAnimations.contains(kind)) {
                     ticker.tickAndUpload();

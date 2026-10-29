@@ -12,5 +12,10 @@ public abstract class WindowDisplayMixin {
     @Inject(method = "updateDisplay", at = @At("RETURN"))
     private void nimbus$fence(CallbackInfo ci) {
         FrameLimiter.afterSwap();
+        com.qateralong.nimbus.render.Stream.endFrame();
+        com.qateralong.nimbus.render.Terrain.endFrame();
+        com.qateralong.nimbus.Nimbus.frames++;
+        com.qateralong.nimbus.render.GuiBatch.endFrame();
+        com.qateralong.nimbus.render.GpuTimer.endFrame();
     }
 }

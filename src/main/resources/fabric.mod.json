@@ -8,6 +8,7 @@
     "qateralong"
   ],
   "license": "All Rights Reserved",
+  "icon": "assets/nimbus/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
@@ -15,6 +16,9 @@
     ],
     "modmenu": [
       "com.qateralong.nimbus.ModMenu"
+    ],
+    "sodium:config_api_user": [
+      "com.qateralong.nimbus.NimbusSodiumConfig"
     ]
   },
   "mixins": [
@@ -28,5 +32,6 @@
   },
   "breaks": {
     "entityculling": "*"
-  }
+  },
+  "accessWidener": "nimbus.accesswidener"
 }

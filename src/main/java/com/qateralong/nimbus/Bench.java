@@ -29,7 +29,7 @@ final class Bench {
     private static int waiting;
 
     static void tick(Minecraft client) {
-        if (MODE == null) {
+        if (MODE == null || "prod".equals(MODE)) {
             return;
         }
         if (client.player == null || client.getSingleplayerServer() == null) {

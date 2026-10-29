@@ -7,6 +7,10 @@ version = "${property("mod_version")}+${property("minecraft_version")}"
 group = property("maven_group") as String
 base.archivesName = modId
 
+loom {
+    accessWidenerPath = file("src/main/resources/nimbus.accesswidener")
+}
+
 repositories {
     maven("https://maven.terraformersmc.com/releases") {
         name = "Terraformers"
@@ -27,6 +31,7 @@ dependencies {
     modImplementation("net.fabricmc:fabric-loader:${property("loader_version")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_api_version")}")
     modCompileOnly("com.terraformersmc:modmenu:11.0.3")
+    modCompileOnly(files("libs/sodium-fabric-0.8.13+mc1.21.1.jar"))
 }
 
 loom {

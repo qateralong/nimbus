@@ -14,8 +14,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class BlockEntityRenderDispatcherMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private <E extends BlockEntity> void nimbus$cull(E blockEntity, float partialTick, PoseStack pose, MultiBufferSource buffers, CallbackInfo ci) {
-        if (com.qateralong.nimbus.Chests.isChest(blockEntity) && com.qateralong.nimbus.Chests.enabled()
-                && !com.qateralong.nimbus.Chests.drawEntity(blockEntity.getBlockPos())) {
+        if (com.qateralong.nimbus.Chests.meshed(blockEntity)
+                && (!com.qateralong.nimbus.Chests.animated(blockEntity) || !com.qateralong.nimbus.Chests.drawEntity(blockEntity.getBlockPos()))) {
+            ci.cancel();
+            return;
+        }
+        com.qateralong.nimbus.NimbusConfig config = com.qateralong.nimbus.NimbusConfig.get();
+        if (config.enabled && (!config.enchantingBook && blockEntity instanceof net.minecraft.world.level.block.entity.EnchantingTableBlockEntity
+                || !config.pistonAnimation && blockEntity instanceof net.minecraft.world.level.block.piston.PistonMovingBlockEntity)) {
             ci.cancel();
             return;
         }

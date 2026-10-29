@@ -1,6 +1,5 @@
 package com.qateralong.nimbus;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,12 +32,15 @@ public final class Cull {
     private static final Reference2IntOpenHashMap<EntityType<?>> ENTITY_LIMITS = new Reference2IntOpenHashMap<>();
     private static final Reference2IntOpenHashMap<BlockEntityType<?>> BLOCK_ENTITY_LIMITS = new Reference2IntOpenHashMap<>();
     private static final Set<BlockEntityType<?>> ALWAYS_TICK = new HashSet<>();
-    private static final LongOpenHashSet VISIBLE = new LongOpenHashSet();
+    private static final BlockPos.MutableBlockPos LOOKUP = new BlockPos.MutableBlockPos();
+    private static com.qateralong.nimbus.mixin.ViewAreaAccessor viewArea;
+    private static int stampFrame;
+    private static int fallbackStamp;
     private static List<SectionRenderDispatcher.RenderSection> sections;
     private static boolean sectionsDirty = true;
     private static boolean sectionsUsable;
 
-    private static final boolean DEBUG_ALWAYS = System.getProperty("nimbus.bench") != null;
+    private static final boolean DEBUG_ALWAYS = System.getProperty("nimbus.bench") != null && !"prod".equals(System.getProperty("nimbus.bench"));
     public static boolean active;
     public static double camX;
     public static double camY;
@@ -66,6 +68,7 @@ public final class Cull {
     }
 
     public static void beginFrame(double x, double y, double z, List<SectionRenderDispatcher.RenderSection> visible) {
+        Startup.firstWorldFrame();
         NimbusConfig config = NimbusConfig.get();
         active = config.enabled;
         it.unimi.dsi.fastutil.ints.IntOpenHashSet swap = hidden;
@@ -183,12 +186,12 @@ public final class Cull {
 
     private static boolean exempt(Entity entity) {
         Minecraft minecraft = Minecraft.getInstance();
-        return entity == minecraft.getCameraEntity() || entity == minecraft.player || entity.isCurrentlyGlowing() || entity.isVehicle()
-                || entity.isPassenger() || entity.noCulling;
+        return entity.noCulling || entity == minecraft.getCameraEntity() || entity == minecraft.player || entity.isPassenger() || entity.isVehicle()
+                || entity.isCurrentlyGlowing();
     }
 
     public static boolean entityVisible(Entity entity) {
-        if (!active) {
+        if (!active || Compat.shadowPass()) {
             return true;
         }
         entitiesSeen++;
@@ -225,16 +228,20 @@ public final class Cull {
     private static boolean sectionVisible(AABB box) {
         if (sectionsDirty) {
             sectionsDirty = false;
-            VISIBLE.clear();
             sectionsUsable = sections != null && !sections.isEmpty();
-            if (sectionsUsable) {
+            if (sectionsUsable && com.qateralong.nimbus.render.Visibility.valid) {
+                stampFrame = com.qateralong.nimbus.render.Visibility.stamp;
+            } else if (sectionsUsable) {
+                stampFrame = --fallbackStamp;
                 for (SectionRenderDispatcher.RenderSection section : sections) {
-                    BlockPos origin = section.getOrigin();
-                    VISIBLE.add(SectionPos.asLong(origin.getX() >> 4, origin.getY() >> 4, origin.getZ() >> 4));
+                    ((com.qateralong.nimbus.render.SectionStamp) section).nimbus$setVisibleFrame(stampFrame);
                 }
             }
+            if (sectionsUsable) {
+                viewArea = (com.qateralong.nimbus.mixin.ViewAreaAccessor) ((com.qateralong.nimbus.mixin.LevelRendererAccessor) Minecraft.getInstance().levelRenderer).nimbus$viewArea();
+            }
         }
-        if (!sectionsUsable || box.getXsize() > 24 || box.getYsize() > 24 || box.getZsize() > 24) {
+        if (!sectionsUsable || viewArea == null || box.getXsize() > 24 || box.getYsize() > 24 || box.getZsize() > 24) {
             return true;
         }
         int x1 = SectionPos.blockToSectionCoord(box.minX - 0.5);
@@ -246,7 +253,13 @@ public final class Cull {
         for (int x = x1; x <= x2; x++) {
             for (int y = y1; y <= y2; y++) {
                 for (int z = z1; z <= z2; z++) {
-                    if (VISIBLE.contains(SectionPos.asLong(x, y, z))) {
+                    SectionRenderDispatcher.RenderSection section = viewArea.nimbus$sectionAt(LOOKUP.set(x << 4, y << 4, z << 4));
+                    if (section == null) {
+                        return true;
+                    }
+                    BlockPos origin = section.getOrigin();
+                    if (origin.getX() != x << 4 || origin.getY() != y << 4 || origin.getZ() != z << 4
+                            || ((com.qateralong.nimbus.render.SectionStamp) section).nimbus$visibleFrame() == stampFrame) {
                         return true;
                     }
                 }
@@ -287,7 +300,7 @@ public final class Cull {
     }
 
     public static boolean blockEntityVisible(BlockEntity blockEntity) {
-        if (!active) {
+        if (!active || Compat.shadowPass()) {
             return true;
         }
         blockEntitiesSeen++;
