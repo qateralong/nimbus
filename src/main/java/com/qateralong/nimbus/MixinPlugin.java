@@ -43,6 +43,9 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".StateHolderMixin")) {
             return this.fastStates && !FabricLoader.getInstance().isModLoaded("ferritecore");
         }
+        if (mixinClassName.endsWith(".SodiumOcclusionMixin")) {
+            return FabricLoader.getInstance().isModLoaded("sodium");
+        }
         if (mixinClassName.endsWith(".BakedQuadMixin") || mixinClassName.endsWith(".ModelManagerMixin")) {
             return this.dedupModels;
         }

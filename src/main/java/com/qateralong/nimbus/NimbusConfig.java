@@ -72,6 +72,9 @@ public final class NimbusConfig {
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
     public boolean fastStates = true;
+    public int leavesCulling = 1;
+    public boolean beaconCulling = true;
+    public boolean signBackCulling = true;
     public boolean dedupModels = true;
     public List<String> disabledParticles = new ArrayList<>();
     public List<String> disabledAnimations = new ArrayList<>();

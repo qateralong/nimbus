@@ -148,6 +148,14 @@ public class NimbusScreen extends Screen {
                 list.add(new Slider("sign_text", 0, 64, 2, () -> c.signTextDistance, v -> c.signTextDistance = v, "blocks"));
                 list.add(new Slider("frame_content", 0, 128, 4, () -> c.frameContentDistance, v -> c.frameContentDistance = v, "blocks"));
                 list.add(new Slider("block_entity_tick", 0, 160, 4, () -> c.blockEntityTickDistance, v -> c.blockEntityTickDistance = v, "blocks"));
+                list.add(new Slider("leaves_culling", 0, 2, 1, () -> c.leavesCulling, v -> {
+                    if (c.leavesCulling != v) {
+                        c.leavesCulling = v;
+                        Minecraft.getInstance().levelRenderer.allChanged();
+                    }
+                }, "leaves"));
+                list.add(new Toggle("beacon_culling", () -> c.beaconCulling, v -> c.beaconCulling = v));
+                list.add(new Toggle("sign_back_culling", () -> c.signBackCulling, v -> c.signBackCulling = v));
             }
             default -> {
                 list.add(new Slider("render_ahead", 0, 4, 1, () -> c.renderAhead, v -> c.renderAhead = v, "frames"));
@@ -260,7 +268,9 @@ public class NimbusScreen extends Screen {
             protected void updateMessage() {
                 int value = current();
                 Component shown;
-                if (option.unit().equals("corner")) {
+                if (option.unit().equals("leaves")) {
+                    shown = Component.translatable("nimbus.leaves." + value);
+                } else if (option.unit().equals("corner")) {
                     shown = Component.translatable("nimbus.corner." + value);
                 } else if (value == 0 && option.key().equals("cloud_height")) {
                     shown = Component.translatable("nimbus.default");

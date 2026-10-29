@@ -141,5 +141,14 @@
   "nimbus.option.fast_states": "Compact block states",
   "nimbus.option.fast_states.tip": "Block states share one neighbour lookup per block instead of a table each. −25 MB vanilla, much more in modpacks. Turns off with FerriteCore. Needs restart.",
   "nimbus.option.dedup_models": "Model deduplication",
-  "nimbus.option.dedup_models.tip": "Identical model vertex data is stored once (~40% duplicates). Needs restart."
+  "nimbus.option.dedup_models.tip": "Identical model vertex data is stored once (~40% duplicates). Needs restart.",
+  "nimbus.option.leaves_culling": "Leaves culling",
+  "nimbus.option.leaves_culling.tip": "Skip inner leaf faces. Depth keeps a fluffy outer layer, All gives the most speed. Helps on Fancy graphics, especially in forests.",
+  "nimbus.leaves.0": "off",
+  "nimbus.leaves.1": "depth",
+  "nimbus.leaves.2": "all",
+  "nimbus.option.beacon_culling": "Beacon beam culling",
+  "nimbus.option.beacon_culling.tip": "Skip beacon beams outside the view (the game always draws them).",
+  "nimbus.option.sign_back_culling": "Sign back culling",
+  "nimbus.option.sign_back_culling.tip": "Skip sign text that faces away from you."
 }

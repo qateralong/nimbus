@@ -19,6 +19,14 @@ public abstract class SignRendererMixin {
                             CallbackInfo ci) {
         if (!Cull.near(pos, NimbusConfig.get().signTextDistance)) {
             ci.cancel();
+            return;
+        }
+        NimbusConfig config = NimbusConfig.get();
+        var minecraft = net.minecraft.client.Minecraft.getInstance();
+        if (config.enabled && config.signBackCulling && minecraft.level != null && minecraft.player != null && !minecraft.options.getCameraType().isMirrored()
+                && minecraft.level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign
+                && sign.isFacingFrontText(minecraft.player) != front) {
+            ci.cancel();
         }
     }
 }
