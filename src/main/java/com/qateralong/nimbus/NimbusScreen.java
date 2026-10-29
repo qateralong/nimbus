@@ -156,6 +156,8 @@ public class NimbusScreen extends Screen {
                 list.add(new Toggle("adaptive_resolution", () -> c.adaptiveResolution, v -> c.adaptiveResolution = v));
                 list.add(new Toggle("hidden_tick", () -> c.hiddenTickLod, v -> c.hiddenTickLod = v));
                 list.add(new Slider("entity_tick", 0, 160, 4, () -> c.entityTickDistance, v -> c.entityTickDistance = v, "blocks"));
+                list.add(new Toggle("fast_states", () -> c.fastStates, v -> c.fastStates = v));
+                list.add(new Toggle("dedup_models", () -> c.dedupModels, v -> c.dedupModels = v));
             }
         }
         return list;

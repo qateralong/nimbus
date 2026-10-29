@@ -4,6 +4,7 @@
   "package": "com.qateralong.nimbus.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "BakedQuadMixin",
     "BeaconRendererMixin",
     "BlockEntityRenderDispatcherMixin",
     "BoundTickingBlockEntityMixin",
@@ -23,6 +24,7 @@
     "LivingEntityRendererMixin",
     "MinecraftMixin",
     "MinecraftScreenMixin",
+    "ModelManagerMixin",
     "OptionsSubScreenAccessor",
     "ParticleBreakMixin",
     "ParticleEngineMixin",
@@ -38,5 +40,9 @@
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "plugin": "com.qateralong.nimbus.MixinPlugin",
+  "mixins": [
+    "StateHolderMixin"
+  ]
 }

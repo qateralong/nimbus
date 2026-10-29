@@ -137,5 +137,9 @@
   "nimbus.corner.1": "left",
   "nimbus.corner.2": "right",
   "nimbus.default": "default",
-  "nimbus.option.particle_type.tip": "Toggle this particle type separately."
+  "nimbus.option.particle_type.tip": "Toggle this particle type separately.",
+  "nimbus.option.fast_states": "Compact block states",
+  "nimbus.option.fast_states.tip": "Block states share one neighbour lookup per block instead of a table each. −25 MB vanilla, much more in modpacks. Turns off with FerriteCore. Needs restart.",
+  "nimbus.option.dedup_models": "Model deduplication",
+  "nimbus.option.dedup_models.tip": "Identical model vertex data is stored once (~40% duplicates). Needs restart."
 }

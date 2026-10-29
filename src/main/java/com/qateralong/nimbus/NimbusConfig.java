@@ -71,6 +71,8 @@ public final class NimbusConfig {
     public boolean toasts = true;
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
+    public boolean fastStates = true;
+    public boolean dedupModels = true;
     public List<String> disabledParticles = new ArrayList<>();
     public List<String> disabledAnimations = new ArrayList<>();
     public boolean debugLine = true;

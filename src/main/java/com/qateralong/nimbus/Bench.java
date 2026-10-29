@@ -44,6 +44,12 @@ final class Bench {
         }
         ticks++;
         MinecraftServer server = client.getSingleplayerServer();
+        if ("mem".equals(MODE)) {
+            if (ticks == 300) {
+                memory(client);
+            }
+            return;
+        }
         if ("scale".equals(MODE)) {
             if (ticks == 20) {
                 client.options.hideGui = true;
@@ -148,6 +154,107 @@ final class Bench {
         String line = String.format(Locale.ROOT, "%s: avg %.1f fps, median %.1f, 1%% low %.1f, frames %d | %s", name, avg, median, low, times.length, Cull.last);
         RESULTS.add(line);
         Nimbus.LOGGER.info("BENCH {}", line);
+    }
+
+    private static long used() {
+        for (int i = 0; i < 4; i++) {
+            System.gc();
+            try {
+                Thread.sleep(150);
+            } catch (InterruptedException ignored) {
+            }
+        }
+        Runtime runtime = Runtime.getRuntime();
+        return (runtime.totalMemory() - runtime.freeMemory()) / 1048576L;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object setUnchecked(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.level.block.state.properties.Property property, Object value) {
+        return state.setValue(property, (Comparable) value);
+    }
+
+    private static void memory(Minecraft client) {
+        StringBuilder out = new StringBuilder();
+        try {
+            long base = used();
+            out.append("heap after load ").append(base).append(" MB\n");
+            int states = 0;
+            long cells = 0;
+            java.lang.reflect.Field neighbours = net.minecraft.world.level.block.state.StateHolder.class.getDeclaredField("neighbours");
+            neighbours.setAccessible(true);
+            java.util.List<Object> holders = new ArrayList<>();
+            for (var block : net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
+                for (var state : block.getStateDefinition().getPossibleStates()) {
+                    states++;
+                    Object table = neighbours.get(state);
+                    if (table instanceof com.google.common.collect.Table<?, ?, ?> t) {
+                        cells += t.size();
+                    }
+                    holders.add(state);
+                }
+            }
+            out.append("block states ").append(states).append(", neighbour cells ").append(cells).append("\n");
+            long checks = 0;
+            long wrong = 0;
+            for (var block : net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
+                java.util.Map<java.util.Map<?, ?>, Object> byValues = new java.util.HashMap<>();
+                for (var state : block.getStateDefinition().getPossibleStates()) {
+                    byValues.put(new java.util.HashMap<>(state.getValues()), state);
+                }
+                for (var state : block.getStateDefinition().getPossibleStates()) {
+                    for (var property : state.getProperties()) {
+                        for (Object value : property.getPossibleValues()) {
+                            java.util.Map<Object, Object> wanted = new java.util.HashMap<>(state.getValues());
+                            wanted.put(property, value);
+                            Object expected = byValues.get(wanted);
+                            Object actual = setUnchecked(state, property, value);
+                            checks++;
+                            if (expected != actual) {
+                                wrong++;
+                            }
+                        }
+                    }
+                }
+            }
+            out.append("setValue checks ").append(checks).append(", wrong ").append(wrong).append("\n");
+            java.lang.reflect.Field registry = net.minecraft.client.resources.model.ModelManager.class.getDeclaredField("bakedRegistry");
+            registry.setAccessible(true);
+            java.util.Map<?, ?> models = (java.util.Map<?, ?>) registry.get(client.getModelManager());
+            java.util.Set<net.minecraft.client.renderer.block.model.BakedQuad> quads = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            net.minecraft.util.RandomSource random = net.minecraft.util.RandomSource.create(42);
+            for (Object model : models.values()) {
+                var baked = (net.minecraft.client.resources.model.BakedModel) model;
+                for (var side : net.minecraft.core.Direction.values()) {
+                    quads.addAll(baked.getQuads(null, side, random));
+                }
+                quads.addAll(baked.getQuads(null, null, random));
+            }
+            java.util.Set<java.nio.IntBuffer> unique = new java.util.HashSet<>();
+            long bytes = 0;
+            java.util.Set<int[]> arrays = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (var quad : quads) {
+                int[] vertices = quad.getVertices();
+                if (arrays.add(vertices)) {
+                    bytes += 16 + vertices.length * 4L;
+                    unique.add(java.nio.IntBuffer.wrap(vertices));
+                }
+            }
+            out.append("models ").append(models.size()).append(", quads ").append(quads.size()).append(", vertex arrays ").append(arrays.size())
+                    .append(" (").append(bytes / 1048576).append(" MB), unique contents ").append(unique.size()).append(", deduped while baking ").append(QuadDedup.saved).append("\n");
+            for (Object state : holders) {
+                neighbours.set(state, null);
+            }
+            long without = used();
+            out.append("heap without neighbour tables ").append(without).append(" MB -> tables ").append(base - without).append(" MB\n");
+        } catch (Throwable t) {
+            out.append("failed: ").append(t);
+        }
+        Nimbus.LOGGER.info("BENCH MEM\n{}", out);
+        try {
+            Files.writeString(client.gameDirectory.toPath().resolve("bench-mem.txt"), out.toString());
+        } catch (Exception ignored) {
+        }
+        client.stop();
     }
 
     private static void report(Minecraft client) {
