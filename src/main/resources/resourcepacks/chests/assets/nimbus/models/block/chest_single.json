@@ -1,0 +1,7 @@
+{
+ "parent": "nimbus:block/template_chest_single",
+ "textures": {
+  "chest": "minecraft:entity/chest/normal",
+  "particle": "block/oak_planks"
+ }
+}

@@ -150,5 +150,7 @@
   "nimbus.option.beacon_culling": "Beacon beam culling",
   "nimbus.option.beacon_culling.tip": "Skip beacon beams outside the view (the game always draws them).",
   "nimbus.option.sign_back_culling": "Sign back culling",
-  "nimbus.option.sign_back_culling.tip": "Skip sign text that faces away from you."
+  "nimbus.option.sign_back_culling.tip": "Skip sign text that faces away from you.",
+  "nimbus.option.chest_models": "Chests as blocks",
+  "nimbus.option.chest_models.tip": "Closed chests are drawn in the chunk mesh like regular blocks — almost free; opening switches to the normal animation. Off when Enhanced Block Entities is installed."
 }

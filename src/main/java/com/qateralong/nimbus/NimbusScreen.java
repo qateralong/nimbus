@@ -155,6 +155,11 @@ public class NimbusScreen extends Screen {
                     }
                 }, "leaves"));
                 list.add(new Toggle("beacon_culling", () -> c.beaconCulling, v -> c.beaconCulling = v));
+                list.add(new Toggle("chest_models", () -> c.chestModels, v -> {
+                    c.chestModels = v;
+                    Chests.reset();
+                    Minecraft.getInstance().levelRenderer.allChanged();
+                }));
                 list.add(new Toggle("sign_back_culling", () -> c.signBackCulling, v -> c.signBackCulling = v));
             }
             default -> {

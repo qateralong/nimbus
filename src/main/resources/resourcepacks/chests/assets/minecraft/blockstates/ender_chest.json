@@ -1,0 +1,19 @@
+{
+ "variants": {
+  "facing=north": {
+   "model": "nimbus:block/ender_chest_single"
+  },
+  "facing=east": {
+   "model": "nimbus:block/ender_chest_single",
+   "y": 90
+  },
+  "facing=south": {
+   "model": "nimbus:block/ender_chest_single",
+   "y": 180
+  },
+  "facing=west": {
+   "model": "nimbus:block/ender_chest_single",
+   "y": 270
+  }
+ }
+}

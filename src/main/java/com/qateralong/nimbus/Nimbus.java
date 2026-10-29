@@ -22,6 +22,18 @@ public class Nimbus implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         NimbusConfig.get();
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("enhancedblockentities")) {
+            net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("nimbus").ifPresent(container -> Chests.available =
+                    net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(
+                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nimbus", "chests"), container,
+                            Component.literal("Nimbus: сундуки"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
+            net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin.register(plugin -> plugin.modifyModelAfterBake().register((model, context) -> {
+                var id = context.resourceId();
+                return id != null && id.getNamespace().equals("nimbus") && id.getPath().startsWith("block/") && id.getPath().contains("chest_")
+                        && !id.getPath().contains("template") ? new ChestModel(model) : model;
+            }));
+            net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Chests.reset());
+        }
         toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {

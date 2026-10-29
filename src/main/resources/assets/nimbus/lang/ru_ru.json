@@ -150,5 +150,7 @@
   "nimbus.option.beacon_culling": "Отсечение лучей маяков",
   "nimbus.option.beacon_culling.tip": "Не рисовать лучи маяков вне поля зрения (в игре они рисуются всегда).",
   "nimbus.option.sign_back_culling": "Текст табличек сзади",
-  "nimbus.option.sign_back_culling.tip": "Не рисовать надпись, которую не видно, когда смотришь на табличку с другой стороны."
+  "nimbus.option.sign_back_culling.tip": "Не рисовать надпись, которую не видно, когда смотришь на табличку с другой стороны.",
+  "nimbus.option.chest_models": "Сундуки как блоки",
+  "nimbus.option.chest_models.tip": "Закрытые сундуки рисуются в сетке чанка как обычные блоки — почти бесплатно; при открытии включается обычная анимация. Отключается само, если стоит Enhanced Block Entities."
 }

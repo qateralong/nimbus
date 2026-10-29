@@ -13,7 +13,9 @@ final class Bench {
     private static final String MODE = System.getProperty("nimbus.bench");
     private static final int SETTLE = 300;
     private static final int PHASE = 300;
-    private static final String[] PHASES = {"off", "on", "on70", "off", "on", "on70"};
+    private static final String[] PHASES = "storage".equals(System.getProperty("nimbus.bench"))
+            ? new String[]{"off", "on", "nochest", "off", "on", "nochest"} : new String[]{"off", "on", "on70", "off", "on", "on70"};
+    private static int phaseStart;
     private static int ticks;
     private static int phase = -1;
     private static long lastFrame;
@@ -44,6 +46,10 @@ final class Bench {
         }
         ticks++;
         MinecraftServer server = client.getSingleplayerServer();
+        if ("chests".equals(MODE)) {
+            chests(client, server);
+            return;
+        }
         if ("mem".equals(MODE)) {
             if (ticks == 300) {
                 memory(client);
@@ -118,6 +124,11 @@ final class Bench {
             }
             NimbusConfig.get().enabled = !PHASES[phase].equals("off");
             NimbusConfig.get().renderScale = PHASES[phase].equals("on70") ? 70 : 100;
+            NimbusConfig.get().chestModels = !PHASES[phase].equals("nochest");
+            Chests.reset();
+            Cull.reload();
+            client.levelRenderer.allChanged();
+            phaseStart = ticks;
             Cull.reload();
             FRAMES.clear();
             lastFrame = 0;
@@ -125,7 +136,8 @@ final class Bench {
     }
 
     private static void frame() {
-        if (phase < 0 || phase >= PHASES.length) {
+        if (phase < 0 || phase >= PHASES.length || ticks - phaseStart < 60) {
+            lastFrame = 0;
             return;
         }
         long now = System.nanoTime();
@@ -154,6 +166,62 @@ final class Bench {
         String line = String.format(Locale.ROOT, "%s: avg %.1f fps, median %.1f, 1%% low %.1f, frames %d | %s", name, avg, median, low, times.length, Cull.last);
         RESULTS.add(line);
         Nimbus.LOGGER.info("BENCH {}", line);
+    }
+
+    private static void shot(Minecraft client, String name) {
+        net.minecraft.client.Screenshot.grab(client.gameDirectory, name + ".png", client.getMainRenderTarget(), message -> {
+        });
+    }
+
+    private static void lid(MinecraftServer server, int x, int z, int open) {
+        server.execute(() -> {
+            var level = server.overworld();
+            var pos = new net.minecraft.core.BlockPos(x, -60, z);
+            level.blockEvent(pos, level.getBlockState(pos).getBlock(), 1, open);
+        });
+    }
+
+    private static void chests(Minecraft client, MinecraftServer server) {
+        switch (ticks) {
+            case 20 -> {
+                client.options.hideGui = true;
+                for (String command : List.of("time set 6000", "weather clear", "gamerule doDaylightCycle false", "fill -12 -60 -4 12 -50 12 air",
+                        "setblock -8 -60 6 chest[facing=north]", "setblock -6 -60 6 chest[facing=east]", "setblock -4 -60 6 chest[facing=south]",
+                        "setblock -2 -60 6 chest[facing=west]", "setblock 1 -60 6 chest[facing=north,type=left]", "setblock 2 -60 6 chest[facing=north,type=right]",
+                        "setblock 5 -60 6 trapped_chest[facing=north]", "setblock 7 -60 6 ender_chest[facing=north]",
+                        "setblock 4 -60 10 chest[facing=south,type=left]", "setblock 3 -60 10 chest[facing=south,type=right]",
+                        "tp @p 1.5 -57.5 0.5 0 30")) {
+                    run(server, command);
+                }
+            }
+            case 120 -> shot(client, "chests-closed");
+            case 125 -> {
+                lid(server, -8, 6, 1);
+                lid(server, 1, 6, 1);
+                lid(server, 2, 6, 1);
+                lid(server, 7, 6, 1);
+            }
+            case 140 -> shot(client, "chests-open");
+            case 160 -> {
+                lid(server, -8, 6, 0);
+                lid(server, 1, 6, 0);
+                lid(server, 2, 6, 0);
+                lid(server, 7, 6, 0);
+            }
+            case 200 -> shot(client, "chests-closed-again");
+            case 205 -> {
+                NimbusConfig.get().chestModels = false;
+                Chests.reset();
+                client.levelRenderer.allChanged();
+            }
+            case 260 -> shot(client, "chests-vanilla");
+            case 270 -> {
+                NimbusConfig.get().chestModels = true;
+                client.stop();
+            }
+            default -> {
+            }
+        }
     }
 
     private static long used() {
@@ -275,6 +343,22 @@ final class Bench {
     }
 
     private static void build(MinecraftServer server) {
+        if ("storage".equals(MODE)) {
+            List<String> storage = new ArrayList<>(List.of("gamerule doDaylightCycle false", "time set 6000", "weather clear", "forceload add -64 -64 64 96",
+                    "kill @e[type=!player]"));
+            for (int z = -10; z <= 60; z += 10) {
+                storage.add("fill -40 -60 " + z + " 40 -40 " + (z + 9) + " air");
+            }
+            for (int row = 0; row < 3; row++) {
+                int z = 12 + row * 8;
+                storage.add("fill -30 -60 " + z + " 30 -45 " + z + " chest[facing=north]");
+            }
+            storage.add("tp @p 0 -55 -2 0 10");
+            for (String command : storage) {
+                run(server, command);
+            }
+            return;
+        }
         List<String> commands = new ArrayList<>(List.of(
                 "gamerule doDaylightCycle false", "gamerule doWeatherCycle false", "gamerule doMobSpawning false", "gamerule randomTickSpeed 0",
                 "gamerule doEntityDrops false", "time set 6000", "weather clear", "forceload add -64 -64 64 176", "kill @e[type=!player]"));

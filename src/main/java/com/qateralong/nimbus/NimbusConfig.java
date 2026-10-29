@@ -72,6 +72,7 @@ public final class NimbusConfig {
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
     public boolean fastStates = true;
+    public boolean chestModels = true;
     public int leavesCulling = 1;
     public boolean beaconCulling = true;
     public boolean signBackCulling = true;
