@@ -72,6 +72,11 @@ public final class NimbusConfig {
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
     public boolean fastStates = true;
+    public int backgroundFps = 30;
+    public int minimizedFps = 1;
+    public int afkMinutes = 0;
+    public int afkFps = 10;
+    public int backgroundVolume = 100;
     public boolean chestModels = true;
     public int leavesCulling = 1;
     public boolean beaconCulling = true;

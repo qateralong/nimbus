@@ -164,6 +164,11 @@ public class NimbusScreen extends Screen {
             }
             default -> {
                 list.add(new Slider("render_ahead", 0, 4, 1, () -> c.renderAhead, v -> c.renderAhead = v, "frames"));
+                list.add(new Slider("background_fps", 0, 120, 5, () -> c.backgroundFps, v -> c.backgroundFps = v, "fps"));
+                list.add(new Slider("minimized_fps", 0, 30, 1, () -> c.minimizedFps, v -> c.minimizedFps = v, "fps"));
+                list.add(new Slider("afk_minutes", 0, 30, 1, () -> c.afkMinutes, v -> c.afkMinutes = v, "min"));
+                list.add(new Slider("afk_fps", 1, 60, 1, () -> c.afkFps, v -> c.afkFps = v, "fps"));
+                list.add(new Slider("background_volume", 0, 100, 5, () -> c.backgroundVolume, v -> c.backgroundVolume = v, "%"));
                 list.add(vanilla(o.prioritizeChunkUpdates()));
                 list.add(new Slider("target_fps", 0, 240, 10, () -> c.targetFps, v -> c.targetFps = v, "fps"));
                 list.add(new Toggle("adaptive_resolution", () -> c.adaptiveResolution, v -> c.adaptiveResolution = v));
@@ -280,12 +285,14 @@ public class NimbusScreen extends Screen {
                 } else if (value == 0 && option.key().equals("cloud_height")) {
                     shown = Component.translatable("nimbus.default");
                 } else if (value == 0 && option.min() == 0 && !option.key().equals("sharpness")) {
-                    shown = Component.translatable(option.key().equals("target_fps") || option.key().equals("render_ahead") ? "options.off" : "nimbus.unlimited");
+                    shown = Component.translatable(List.of("target_fps", "render_ahead", "background_fps", "minimized_fps", "afk_minutes").contains(option.key())
+                            ? "options.off" : "nimbus.unlimited");
                 } else {
                     shown = Component.literal(value + switch (option.unit()) {
                         case "blocks" -> " " + Component.translatable("nimbus.blocks").getString();
                         case "frames" -> " " + Component.translatable("nimbus.frames").getString();
                         case "fps" -> " FPS";
+                        case "min" -> " " + Component.translatable("nimbus.minutes").getString();
                         default -> option.unit();
                     });
                 }

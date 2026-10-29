@@ -152,5 +152,16 @@
   "nimbus.option.sign_back_culling": "Sign back culling",
   "nimbus.option.sign_back_culling.tip": "Skip sign text that faces away from you.",
   "nimbus.option.chest_models": "Chests as blocks",
-  "nimbus.option.chest_models.tip": "Closed chests are drawn in the chunk mesh like regular blocks — almost free; opening switches to the normal animation. Off when Enhanced Block Entities is installed."
+  "nimbus.option.chest_models.tip": "Closed chests are drawn in the chunk mesh like regular blocks — almost free; opening switches to the normal animation. Off when Enhanced Block Entities is installed.",
+  "nimbus.option.background_fps": "Background FPS",
+  "nimbus.option.background_fps.tip": "Frame cap when the game window is not focused.",
+  "nimbus.option.minimized_fps": "Minimized FPS",
+  "nimbus.option.minimized_fps.tip": "Frame cap when the game is minimized — almost no load.",
+  "nimbus.option.afk_minutes": "Idle after (minutes)",
+  "nimbus.option.afk_minutes.tip": "Minutes without mouse or keyboard before lowering FPS.",
+  "nimbus.option.afk_fps": "Idle FPS",
+  "nimbus.option.afk_fps.tip": "Frame cap while idle.",
+  "nimbus.option.background_volume": "Background volume",
+  "nimbus.option.background_volume.tip": "Game volume when the window is not focused (100% = unchanged).",
+  "nimbus.minutes": "min"
 }

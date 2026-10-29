@@ -152,5 +152,16 @@
   "nimbus.option.sign_back_culling": "Текст табличек сзади",
   "nimbus.option.sign_back_culling.tip": "Не рисовать надпись, которую не видно, когда смотришь на табличку с другой стороны.",
   "nimbus.option.chest_models": "Сундуки как блоки",
-  "nimbus.option.chest_models.tip": "Закрытые сундуки рисуются в сетке чанка как обычные блоки — почти бесплатно; при открытии включается обычная анимация. Отключается само, если стоит Enhanced Block Entities."
+  "nimbus.option.chest_models.tip": "Закрытые сундуки рисуются в сетке чанка как обычные блоки — почти бесплатно; при открытии включается обычная анимация. Отключается само, если стоит Enhanced Block Entities.",
+  "nimbus.option.background_fps": "FPS в фоне",
+  "nimbus.option.background_fps.tip": "Ограничение кадров, когда окно игры не в фокусе.",
+  "nimbus.option.minimized_fps": "FPS в свёрнутом окне",
+  "nimbus.option.minimized_fps.tip": "Ограничение кадров, когда игра свёрнута — почти ноль нагрузки.",
+  "nimbus.option.afk_minutes": "Простой (минуты)",
+  "nimbus.option.afk_minutes.tip": "Через сколько минут без мыши и клавиатуры снижать FPS.",
+  "nimbus.option.afk_fps": "FPS при простое",
+  "nimbus.option.afk_fps.tip": "Ограничение кадров при простое.",
+  "nimbus.option.background_volume": "Громкость в фоне",
+  "nimbus.option.background_volume.tip": "Громкость игры, когда окно не в фокусе (100% — не менять).",
+  "nimbus.minutes": "мин"
 }

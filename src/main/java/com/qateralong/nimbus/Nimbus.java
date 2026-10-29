@@ -56,6 +56,7 @@ public class Nimbus implements ClientModInitializer {
                 client.setScreen(new NimbusScreen(client.screen));
             }
             Cull.adapt(client.getFps());
+            Idle.tick(client);
             Bench.tick(client);
         });
     }
