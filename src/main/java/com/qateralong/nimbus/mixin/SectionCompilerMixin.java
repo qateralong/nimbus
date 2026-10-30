@@ -27,6 +27,9 @@ public abstract class SectionCompilerMixin {
     @Inject(method = "compile", at = @At("HEAD"))
     private void nimbus$light(SectionPos section, RenderChunkRegion region, VertexSorting sorting, SectionBufferBuilderPack pack,
                               CallbackInfoReturnable<SectionCompiler.Results> cir) {
+        if (NimbusConfig.get().enabled) {
+            ((com.qateralong.nimbus.render.BlockWindow) region).nimbus$begin(section);
+        }
         if (NimbusConfig.get().enabled && NimbusConfig.get().sectionLightCache) {
             SectionLight.begin(section, region);
         }

@@ -26,6 +26,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelRenderer.class)
 public abstract class CompileSectionsMixin {
     @org.spongepowered.asm.mixin.Unique
+    private static final long UPLOAD_BUDGET = 2_500_000L;
+
+    @org.spongepowered.asm.mixin.Unique
+    private static final int MIN_UPLOADS = 8;
+
+    @org.spongepowered.asm.mixin.Unique
     private static final boolean NIMBUS_BENCH = System.getProperty("nimbus.bench") != null;
 
     @org.spongepowered.asm.mixin.Unique
@@ -58,20 +64,50 @@ public abstract class CompileSectionsMixin {
         BlockPos cameraPos = camera.getBlockPosition();
         PrioritizeChunkUpdates priority = this.minecraft.options.prioritizeChunkUpdates().get();
         List<SectionRenderDispatcher.RenderSection> async = new ArrayList<>();
+        boolean forced = false;
         int frame = Nimbus.frames;
         boolean tracked = com.qateralong.nimbus.render.Visibility.valid && com.qateralong.nimbus.render.Visibility.allCount == this.visibleSections.size();
         int count = tracked ? com.qateralong.nimbus.render.Visibility.allCount : this.visibleSections.size();
         int[] ids = com.qateralong.nimbus.render.Visibility.allIds;
         SectionRenderDispatcher.RenderSection[] sections = com.qateralong.nimbus.render.Visibility.allSections;
         boolean[] dirtyIds = com.qateralong.nimbus.render.SectionData.dirty;
-        for (int i = 0; i < count; i++) {
-            if (tracked) {
-                int id = ids[i];
-                if (id < dirtyIds.length && !dirtyIds[id]) {
+        long[] picked = null;
+        if (tracked && com.qateralong.nimbus.render.SectionData.dirtyCount <= 2048) {
+            com.qateralong.nimbus.render.SectionData.compactDirty();
+            int listed = com.qateralong.nimbus.render.SectionData.dirtyListed;
+            int[] listedIds = com.qateralong.nimbus.render.SectionData.dirtyIds;
+            int[] order = com.qateralong.nimbus.render.SectionData.order;
+            SectionRenderDispatcher.RenderSection[] byId = com.qateralong.nimbus.render.SectionData.sections;
+            int stampNow = com.qateralong.nimbus.render.Visibility.stamp;
+            picked = new long[listed];
+            int found = 0;
+            for (int i = 0; i < listed; i++) {
+                int id = listedIds[i];
+                SectionRenderDispatcher.RenderSection section = byId[id];
+                if (section == null || ((SectionStamp) section).nimbus$visibleFrame() != stampNow) {
                     continue;
                 }
+                int index = order[id];
+                if (index < count && sections[index] == section) {
+                    picked[found++] = (long) index << 32 | id;
+                }
             }
-            SectionRenderDispatcher.RenderSection section = tracked ? sections[i] : this.visibleSections.get(i);
+            java.util.Arrays.sort(picked, 0, found);
+            count = found;
+        }
+        for (int i = 0; i < count; i++) {
+            SectionRenderDispatcher.RenderSection section;
+            if (picked != null) {
+                section = sections[(int) (picked[i] >>> 32)];
+            } else {
+                if (tracked) {
+                    int id = ids[i];
+                    if (id < dirtyIds.length && !dirtyIds[id]) {
+                        continue;
+                    }
+                }
+                section = tracked ? sections[i] : this.visibleSections.get(i);
+            }
             if (!section.isDirty()) {
                 continue;
             }
@@ -97,6 +133,7 @@ public abstract class CompileSectionsMixin {
                 profiler.push("build_near_sync");
                 this.sectionRenderDispatcher.rebuildSectionSync(section, cache);
                 section.setNotDirty();
+                forced = true;
                 profiler.pop();
             } else {
                 async.add(section);
@@ -119,7 +156,12 @@ public abstract class CompileSectionsMixin {
                     + this.visibleSections.size() + ", dirty " + vanillaDirty + "/" + ourDirty + ", scheduled " + async.size() + ", light " + light.getClass().getSimpleName());
         }
         profiler.popPush("upload");
-        this.sectionRenderDispatcher.uploadAllPendingUploads();
+        java.util.Queue<Runnable> uploads = ((com.qateralong.nimbus.render.UploadQueue) this.sectionRenderDispatcher).nimbus$uploads();
+        long deadline = System.nanoTime() + UPLOAD_BUDGET;
+        int uploaded = 0;
+        for (Runnable task; (forced || uploaded < MIN_UPLOADS || System.nanoTime() < deadline) && (task = uploads.poll()) != null; uploaded++) {
+            task.run();
+        }
         profiler.popPush("schedule_async_compile");
         for (SectionRenderDispatcher.RenderSection section : async) {
             section.rebuildSectionAsync(this.sectionRenderDispatcher, cache);

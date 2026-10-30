@@ -8,3 +8,22 @@ accessible method net/minecraft/client/gui/font/providers/UnihexProvider$ByteCon
 accessible method net/minecraft/client/gui/font/providers/UnihexProvider$ShortContents read (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
 accessible method net/minecraft/client/gui/font/providers/UnihexProvider$IntContents read24 (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
 accessible method net/minecraft/client/gui/font/providers/UnihexProvider$IntContents read32 (ILit/unimi/dsi/fastutil/bytes/ByteList;)Lnet/minecraft/client/gui/font/providers/UnihexProvider$LineData;
+accessible class net/minecraft/client/renderer/SectionOcclusionGraph$GraphState
+accessible class net/minecraft/client/renderer/SectionOcclusionGraph$GraphStorage
+accessible field net/minecraft/client/renderer/SectionOcclusionGraph$Node section Lnet/minecraft/client/renderer/chunk/SectionRenderDispatcher$RenderSection;
+accessible field net/minecraft/client/renderer/culling/Frustum intersection Lorg/joml/FrustumIntersection;
+accessible field net/minecraft/client/renderer/culling/Frustum camX D
+accessible field net/minecraft/client/renderer/culling/Frustum camY D
+accessible field net/minecraft/client/renderer/culling/Frustum camZ D
+accessible class net/minecraft/client/renderer/chunk/RenderChunk
+accessible class net/minecraft/client/OptionInstance$ValueSet
+accessible class net/minecraft/client/OptionInstance$CycleableValueSet
+accessible class net/minecraft/client/OptionInstance$SliderableValueSet
+accessible class net/minecraft/client/OptionInstance$IntRangeBase
+accessible field net/minecraft/client/OptionInstance tooltip Lnet/minecraft/client/OptionInstance$TooltipSupplier;
+accessible field net/minecraft/client/OptionInstance toString Ljava/util/function/Function;
+accessible field net/minecraft/client/OptionInstance initialValue Ljava/lang/Object;
+accessible field net/minecraft/client/OptionInstance caption Lnet/minecraft/network/chat/Component;
+accessible field net/minecraft/client/gui/components/Tooltip message Lnet/minecraft/network/chat/Component;
+accessible class net/minecraft/world/level/chunk/PalettedContainer$Data
+accessible field net/minecraft/world/level/chunk/PalettedContainer data Lnet/minecraft/world/level/chunk/PalettedContainer$Data;

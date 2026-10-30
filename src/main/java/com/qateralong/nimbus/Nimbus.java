@@ -53,6 +53,7 @@ public class Nimbus implements ClientModInitializer {
                         net.minecraft.world.level.block.ShulkerBoxBlock.getBlockByColor(color), net.minecraft.client.renderer.RenderType.cutout());
             }
         }
+        com.qateralong.nimbus.api.NimbusOptionsApi.builtin(NimbusPages::register);
         toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {

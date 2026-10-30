@@ -58,6 +58,7 @@ public final class NimbusConfig {
     public boolean biomeCache = true;
     public boolean terrainRenderer = false;
     public boolean nimbusMesher = true;
+    public boolean gpuOcclusion = false;
     public boolean sectionLightCache = true;
     public boolean entityLightCache = true;
     public boolean entityGrouping = true;

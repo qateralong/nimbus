@@ -46,9 +46,19 @@ public final class Terrain {
     private static boolean fogCylinder;
     public static int fogCulled;
     private static int markedTick = -1;
+    private static final ObjectArrayList<int[]> SPRITES_SEEN = new ObjectArrayList<>();
+    private static int lastStamp = -1;
+    private static int lastVersion = -1;
+    private static double lastX = Double.NaN;
+    private static double lastY = Double.NaN;
+    private static double lastZ = Double.NaN;
+    private static float lastFog = Float.NaN;
+    private static boolean lastCylinder;
+    private static int reused;
     private static final boolean BENCH = System.getProperty("nimbus.bench") != null;
     private static long benchNanos;
     private static long benchSections;
+    private static long benchCulled;
     private static int benchFrames;
     private static Arena arena;
     private static final int MAX_QUADS_PER_DRAW = 1 << 14;
@@ -129,8 +139,8 @@ public final class Terrain {
         if (!active()) {
             return null;
         }
-        return String.format("Nimbus terrain: %d MB of %d MB, %d draws, %d visible, %d fogged", (long) arena.usedQuads() * Arena.QUAD_BYTES >> 20,
-                (long) arena.capacityQuads() * Arena.QUAD_BYTES >> 20, lastDraws, Visibility.count, fogCulled);
+        return String.format("Nimbus terrain: %d MB of %d MB, %d draws, %d visible, %d fogged, %d occluded", (long) arena.usedQuads() * Arena.QUAD_BYTES >> 20,
+                (long) arena.capacityQuads() * Arena.QUAD_BYTES >> 20, lastDraws, Visibility.count, fogCulled, HiZ.culledDraws);
     }
 
     public static boolean meshing() {
@@ -334,26 +344,38 @@ public final class Terrain {
         }
     }
 
-    public static boolean render(LevelRenderer levelRenderer, RenderType layer, double x, double y, double z, Matrix4f modelView, Matrix4f projection) {
+    public static void prepare(LevelRenderer levelRenderer, double x, double y, double z) {
         if (!active()) {
-            return false;
+            return;
         }
         for (Runnable task; (task = DEFERRED.poll()) != null; ) {
             task.run();
         }
-        LevelRendererAccessor renderer = (LevelRendererAccessor) levelRenderer;
-        ObjectArrayList<SectionRenderDispatcher.RenderSection> visible = renderer.nimbus$visibleSections();
-        layer.setupRenderState();
-        boolean translucent = layer == RenderType.translucent();
-        if (translucent) {
-            resortTranslucent(renderer, visible, layer, x, y, z);
-        }
         Origins.flush();
         if (builtFrame != frame) {
+            ObjectArrayList<SectionRenderDispatcher.RenderSection> visible = ((LevelRendererAccessor) levelRenderer).nimbus$visibleSections();
             long started = BENCH ? System.nanoTime() : 0L;
-            build(visible, x, y, z);
+            fogSetup();
+            if (Visibility.valid && LISTS.length > 0 && Visibility.changes == lastStamp && SectionData.version == lastVersion && x == lastX && y == lastY
+                    && z == lastZ && fogLimit == lastFog && fogCylinder == lastCylinder) {
+                reuse();
+                reused++;
+            } else {
+                build(visible, x, y, z);
+                lastStamp = Visibility.valid ? Visibility.changes : -1;
+                lastVersion = SectionData.version;
+                lastX = x;
+                lastY = y;
+                lastZ = z;
+                lastFog = fogLimit;
+                lastCylinder = fogCylinder;
+            }
             builtFrame = frame;
+            if (NimbusConfig.get().gpuOcclusion) {
+                HiZ.cull(LISTS, x, y, z, frame);
+            }
             if (BENCH) {
+                benchCulled += HiZ.culledQuads;
                 benchNanos += System.nanoTime() - started;
                 benchSections += Visibility.valid ? Visibility.count : visible.size();
                 benchFrames++;
@@ -362,13 +384,29 @@ public final class Terrain {
                     for (Commands list : LISTS) {
                         draws += list.count;
                     }
-                    Nimbus.LOGGER.info(String.format(java.util.Locale.ROOT, "Nimbus build: %.3f ms, %d sections, %d draws per frame",
-                            benchNanos / 1e6 / benchFrames, benchSections / benchFrames, draws));
+                    Nimbus.LOGGER.info(String.format(java.util.Locale.ROOT, "Nimbus build: %.3f ms, %d sections, %d draws per frame, %d%% reused, %d quads occluded",
+                            benchNanos / 1e6 / benchFrames, benchSections / benchFrames, draws, reused * 100 / benchFrames, benchCulled / benchFrames));
+                    reused = 0;
+                    benchCulled = 0L;
                     benchNanos = 0L;
                     benchSections = 0L;
                     benchFrames = 0;
                 }
             }
+        }
+    }
+
+    public static boolean render(LevelRenderer levelRenderer, RenderType layer, double x, double y, double z, Matrix4f modelView, Matrix4f projection) {
+        if (!active()) {
+            return false;
+        }
+        prepare(levelRenderer, x, y, z);
+        LevelRendererAccessor renderer = (LevelRendererAccessor) levelRenderer;
+        ObjectArrayList<SectionRenderDispatcher.RenderSection> visible = renderer.nimbus$visibleSections();
+        layer.setupRenderState();
+        boolean translucent = layer == RenderType.translucent();
+        if (translucent) {
+            resortTranslucent(renderer, visible, layer, x, y, z);
         }
         int index = layerIndex(layer);
         int draws = 0;
@@ -383,21 +421,24 @@ public final class Terrain {
         if (layer == RenderType.solid()) {
             lastDraws = 0;
         }
+        if (layer == RenderType.cutout() && NimbusConfig.get().gpuOcclusion) {
+            HiZ.capture(projection, modelView, x, y, z, frame);
+        }
         lastDraws += draws;
         layer.clearRenderState();
         return true;
     }
 
-    private static boolean facing(int group, int[] record, int p, float x, float y, float z) {
-        return switch (group) {
-            case 0 -> y < Float.intBitsToFloat(record[p]) + 0.01F;
-            case 1 -> y > Float.intBitsToFloat(record[p + 1]) - 0.01F;
-            case 2 -> z < Float.intBitsToFloat(record[p + 2]) + 0.01F;
-            case 3 -> z > Float.intBitsToFloat(record[p + 3]) - 0.01F;
-            case 4 -> x < Float.intBitsToFloat(record[p + 4]) + 0.01F;
-            case 5 -> x > Float.intBitsToFloat(record[p + 5]) - 0.01F;
-            default -> true;
-        };
+    private static void reuse() {
+        if (markedTick != Nimbus.ticks) {
+            markedTick = Nimbus.ticks;
+            for (int i = 0, size = SPRITES_SEEN.size(); i < size; i++) {
+                AnimatedSprites.mark(SPRITES_SEEN.get(i));
+            }
+        }
+        for (Commands list : LISTS) {
+            list.upload();
+        }
     }
 
     private static void fogSetup() {
@@ -428,13 +469,13 @@ public final class Terrain {
         int[][] animatedSprites = SectionData.animated;
         boolean tracked = Visibility.valid;
         int[] visibleIds = Visibility.ids;
-        fogSetup();
         float limit = fogLimit;
         boolean cylinder = fogCylinder;
         int fogged = 0;
         int[] headers = Origins.values;
         boolean markSprites = markedTick != Nimbus.ticks;
         markedTick = Nimbus.ticks;
+        SPRITES_SEEN.clear();
         for (int i = 0, size = tracked ? Visibility.count : visible.size(); i < size; i++) {
             int id = tracked ? visibleIds[i] : ((SectionStamp) visible.get(i)).nimbus$id();
             int head = id * 4;
@@ -464,10 +505,13 @@ public final class Terrain {
                 int key = id * SectionData.LAYERS + l;
                 int at = key * SectionData.STRIDE;
                 int flags = records[at + SectionData.FLAGS];
-                if (markSprites && (flags & SectionData.ANIMATED) != 0) {
+                if ((flags & SectionData.ANIMATED) != 0) {
                     int[] sprites = animatedSprites[key];
                     if (sprites != null) {
-                        AnimatedSprites.mark(sprites);
+                        SPRITES_SEEN.add(sprites);
+                        if (markSprites) {
+                            AnimatedSprites.mark(sprites);
+                        }
                     }
                 }
                 int base = records[at + SectionData.START];
@@ -478,18 +522,29 @@ public final class Terrain {
                 }
                 int o = at + SectionData.OFFSETS;
                 int p = at + SectionData.PLANES;
+                int shown = (cy < Float.intBitsToFloat(records[p]) + 0.01F ? 1 : 0)
+                        | (cy > Float.intBitsToFloat(records[p + 1]) - 0.01F ? 2 : 0)
+                        | (cz < Float.intBitsToFloat(records[p + 2]) + 0.01F ? 4 : 0)
+                        | (cz > Float.intBitsToFloat(records[p + 3]) - 0.01F ? 8 : 0)
+                        | (cx < Float.intBitsToFloat(records[p + 4]) + 0.01F ? 16 : 0)
+                        | (cx > Float.intBitsToFloat(records[p + 5]) - 0.01F ? 32 : 0)
+                        | 64;
+                int present = flags >>> SectionData.GROUP_SHIFT & 0x7F;
                 int runStart = -1;
-                for (int group = 0; group <= Faces.GROUPS; group++) {
-                    if (group < Faces.GROUPS && records[o + group + 1] == records[o + group]) {
-                        continue;
-                    }
-                    boolean show = group < Faces.GROUPS && facing(group, records, p, cx, cy, cz);
-                    if (show && runStart < 0) {
-                        runStart = records[o + group];
-                    } else if (!show && runStart >= 0) {
+                while (present != 0) {
+                    int group = Integer.numberOfTrailingZeros(present);
+                    present &= present - 1;
+                    if ((shown >>> group & 1) != 0) {
+                        if (runStart < 0) {
+                            runStart = records[o + group];
+                        }
+                    } else if (runStart >= 0) {
                         list.add(base + runStart, records[o + group] - runStart, id, MAX_QUADS_PER_DRAW);
                         runStart = -1;
                     }
+                }
+                if (runStart >= 0) {
+                    list.add(base + runStart, records[o + Faces.GROUPS] - runStart, id, MAX_QUADS_PER_DRAW);
                 }
             }
         }

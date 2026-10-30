@@ -50,7 +50,7 @@ final class TerrainProgram {
         GlStateManager._glUseProgram(0);
     }
 
-    private static String source(String name) throws IOException {
+    static String source(String name) throws IOException {
         try (InputStream stream = TerrainProgram.class.getResourceAsStream("/assets/nimbus/shaders/terrain/" + name)) {
             if (stream == null) {
                 throw new IOException("Missing shader " + name);
@@ -59,7 +59,7 @@ final class TerrainProgram {
         }
     }
 
-    private static int compile(int type, String source) throws IOException {
+    static int compile(int type, String source) throws IOException {
         int shader = GL20.glCreateShader(type);
         GL20.glShaderSource(shader, source);
         GL20.glCompileShader(shader);

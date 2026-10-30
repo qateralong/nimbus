@@ -12,6 +12,7 @@ public final class Origins {
     private static final IntArrayList FREE = new IntArrayList();
     private static final BitSet DIRTY = new BitSet();
     static int[] values = new int[4 * 4096];
+    public static volatile int moves;
     private static int next;
     private static int buffer;
     private static int capacity;
@@ -37,6 +38,8 @@ public final class Origins {
         values[id * 4] = x;
         values[id * 4 + 1] = y;
         values[id * 4 + 2] = z;
+        moves++;
+        SectionData.version++;
         DIRTY.set(id);
     }
 
@@ -44,6 +47,10 @@ public final class Origins {
         if (id * 4 + 3 < values.length) {
             values[id * 4 + 3] = bits;
         }
+    }
+
+    public static int[] values() {
+        return values;
     }
 
     static int buffer() {

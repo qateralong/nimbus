@@ -37,7 +37,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void nimbus$init(CallbackInfo ci) {
-        com.qateralong.nimbus.render.Visibility.DIRTY.add((SectionRenderDispatcher.RenderSection) (Object) this);
+        com.qateralong.nimbus.render.SectionData.register(this.nimbus$id, (SectionRenderDispatcher.RenderSection) (Object) this);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
         if (Terrain.supported()) {
             this.nimbus$slots();
@@ -51,9 +51,9 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Inject(method = "releaseBuffers", at = @At("RETURN"))
     private void nimbus$releaseId(CallbackInfo ci) {
-        com.qateralong.nimbus.render.Visibility.DIRTY.remove((SectionRenderDispatcher.RenderSection) (Object) this);
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, false);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, false);
+        com.qateralong.nimbus.render.SectionData.register(this.nimbus$id, null);
         com.qateralong.nimbus.render.Origins.release(this.nimbus$id);
     }
 
@@ -90,20 +90,17 @@ public abstract class RenderSectionMixin implements SectionStamp {
     @Inject(method = "reset", at = @At("RETURN"))
     private void nimbus$reset(CallbackInfo ci) {
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, false);
-        com.qateralong.nimbus.render.Visibility.DIRTY.add((SectionRenderDispatcher.RenderSection) (Object) this);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
         Terrain.compiled(this, SectionRenderDispatcher.CompiledSection.UNCOMPILED);
     }
 
     @Inject(method = "setDirty", at = @At("RETURN"))
     private void nimbus$dirty(boolean player, CallbackInfo ci) {
-        com.qateralong.nimbus.render.Visibility.DIRTY.add((SectionRenderDispatcher.RenderSection) (Object) this);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
     }
 
     @Inject(method = "setNotDirty", at = @At("RETURN"))
     private void nimbus$clean(CallbackInfo ci) {
-        com.qateralong.nimbus.render.Visibility.DIRTY.remove((SectionRenderDispatcher.RenderSection) (Object) this);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, false);
     }
 

@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(targets = "net.minecraft.client.renderer.chunk.RenderChunk")
-public abstract class RenderChunkMixin {
+public abstract class RenderChunkMixin implements com.qateralong.nimbus.render.ChunkSections {
     @Unique
     private static final BlockState NIMBUS_AIR = Blocks.AIR.defaultBlockState();
 
@@ -69,5 +69,15 @@ public abstract class RenderChunkMixin {
         }
         PalettedContainer<BlockState> section = array[index];
         cir.setReturnValue(section == null ? NIMBUS_AIR : section.get(pos.getX() & 15, y & 15, pos.getZ() & 15));
+    }
+
+    @Override
+    public PalettedContainer<BlockState>[] nimbus$containers() {
+        return this.nimbus$sections;
+    }
+
+    @Override
+    public int nimbus$minSection() {
+        return this.nimbus$minSection;
     }
 }

@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LevelRendererTerrainMixin {
     @Inject(method = "renderSectionLayer", at = @At("HEAD"), cancellable = true)
     private void nimbus$terrain(RenderType layer, double x, double y, double z, Matrix4f modelView, Matrix4f projection, CallbackInfo ci) {
+        Terrain.prepare((LevelRenderer) (Object) this, x, y, z);
         com.qateralong.nimbus.render.GpuTimer.layerStart(layer);
         if (Terrain.render((LevelRenderer) (Object) this, layer, x, y, z, modelView, projection)) {
             ci.cancel();

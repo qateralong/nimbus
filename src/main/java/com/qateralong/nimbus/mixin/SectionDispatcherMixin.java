@@ -15,13 +15,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(SectionRenderDispatcher.class)
-public abstract class SectionDispatcherMixin {
+public abstract class SectionDispatcherMixin implements com.qateralong.nimbus.render.UploadQueue {
     @Shadow
     @Final
     private Queue<Runnable> toUpload;
 
     @Shadow
     private volatile boolean closed;
+
+    @Override
+    public Queue<Runnable> nimbus$uploads() {
+        return this.toUpload;
+    }
 
     @Inject(method = "uploadSectionLayer", at = @At("HEAD"), cancellable = true)
     private void nimbus$layer(MeshData mesh, VertexBuffer buffer, CallbackInfoReturnable<CompletableFuture<Void>> cir) {
