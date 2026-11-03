@@ -10,9 +10,6 @@ import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ModelPart.Cube.class)
 public abstract class ModelCubeMixin {
@@ -71,9 +68,14 @@ public abstract class ModelCubeMixin {
         this.nimbus$indices = indices;
     }
 
-    @Inject(method = "compile", at = @At("HEAD"), cancellable = true)
-    private void nimbus$compile(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color, CallbackInfo ci) {
+    /**
+     * @author qateralong
+     * @reason shared corners are transformed once per cube instead of once per polygon vertex, with no callback per cube
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    public void compile(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color) {
         if (!NimbusConfig.get().enabled || !RenderSystem.isOnRenderThread()) {
+            this.nimbus$vanilla(pose, consumer, light, overlay, color);
             return;
         }
         if (this.nimbus$indices == null) {
@@ -81,6 +83,7 @@ public abstract class ModelCubeMixin {
         }
         float[] corners = this.nimbus$corners;
         if (corners == null) {
+            this.nimbus$vanilla(pose, consumer, light, overlay, color);
             return;
         }
         Matrix4f matrix = pose.pose();
@@ -94,6 +97,13 @@ public abstract class ModelCubeMixin {
             out[i * 3 + 2] = matrix.m02() * x + matrix.m12() * y + matrix.m22() * z + matrix.m32();
         }
         int[] indices = this.nimbus$indices;
+        if (NIMBUS_LITTLE_ENDIAN && consumer instanceof com.qateralong.nimbus.render.FastVertices fast) {
+            long base = fast.nimbus$reserveEntity(indices.length);
+            if (base != 0L) {
+                this.nimbus$write(base, pose, out, indices, light, overlay, color);
+                return;
+            }
+        }
         int at = 0;
         Vector3f normal = NIMBUS_VECTOR;
         for (ModelPart.Polygon polygon : this.polygons) {
@@ -106,6 +116,65 @@ public abstract class ModelCubeMixin {
                 consumer.addVertex(out[corner], out[corner + 1], out[corner + 2], color, vertex.u, vertex.v, overlay, light, nx, ny, nz);
             }
         }
-        ci.cancel();
+    }
+
+    @Unique
+    private static final boolean NIMBUS_LITTLE_ENDIAN = java.nio.ByteOrder.nativeOrder() == java.nio.ByteOrder.LITTLE_ENDIAN;
+
+    // NEW_ENTITY layout: position 3f, colour ABGR, uv 2f, overlay 2s, light 2s, normal 3b + pad; 36 bytes
+    @Unique
+    private void nimbus$write(long base, PoseStack.Pose pose, float[] out, int[] indices, int light, int overlay, int color) {
+        int abgr = net.minecraft.util.FastColor.ABGR32.fromArgb32(color);
+        short overlayU = (short) (overlay & 0xFFFF);
+        short overlayV = (short) (overlay >> 16 & 0xFFFF);
+        short lightU = (short) (light & 0xFFFF);
+        short lightV = (short) (light >> 16 & 0xFFFF);
+        Vector3f normal = NIMBUS_VECTOR;
+        long p = base;
+        int at = 0;
+        for (ModelPart.Polygon polygon : this.polygons) {
+            pose.transformNormal(polygon.normal, normal);
+            byte nx = nimbus$normal(normal.x());
+            byte ny = nimbus$normal(normal.y());
+            byte nz = nimbus$normal(normal.z());
+            for (ModelPart.Vertex vertex : polygon.vertices) {
+                int corner = indices[at++] * 3;
+                org.lwjgl.system.MemoryUtil.memPutFloat(p, out[corner]);
+                org.lwjgl.system.MemoryUtil.memPutFloat(p + 4L, out[corner + 1]);
+                org.lwjgl.system.MemoryUtil.memPutFloat(p + 8L, out[corner + 2]);
+                org.lwjgl.system.MemoryUtil.memPutInt(p + 12L, abgr);
+                org.lwjgl.system.MemoryUtil.memPutFloat(p + 16L, vertex.u);
+                org.lwjgl.system.MemoryUtil.memPutFloat(p + 20L, vertex.v);
+                org.lwjgl.system.MemoryUtil.memPutShort(p + 24L, overlayU);
+                org.lwjgl.system.MemoryUtil.memPutShort(p + 26L, overlayV);
+                org.lwjgl.system.MemoryUtil.memPutShort(p + 28L, lightU);
+                org.lwjgl.system.MemoryUtil.memPutShort(p + 30L, lightV);
+                org.lwjgl.system.MemoryUtil.memPutByte(p + 32L, nx);
+                org.lwjgl.system.MemoryUtil.memPutByte(p + 33L, ny);
+                org.lwjgl.system.MemoryUtil.memPutByte(p + 34L, nz);
+                p += 36L;
+            }
+        }
+    }
+
+    @Unique
+    private static byte nimbus$normal(float value) {
+        return (byte) ((int) (net.minecraft.util.Mth.clamp(value, -1.0F, 1.0F) * 127.0F) & 255);
+    }
+
+    @Unique
+    private void nimbus$vanilla(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color) {
+        Matrix4f matrix = pose.pose();
+        Vector3f scratch = new Vector3f();
+        for (ModelPart.Polygon polygon : this.polygons) {
+            Vector3f normal = pose.transformNormal(polygon.normal, scratch);
+            float nx = normal.x();
+            float ny = normal.y();
+            float nz = normal.z();
+            for (ModelPart.Vertex vertex : polygon.vertices) {
+                Vector3f position = matrix.transformPosition(vertex.pos.x() / 16.0F, vertex.pos.y() / 16.0F, vertex.pos.z() / 16.0F, scratch);
+                consumer.addVertex(position.x(), position.y(), position.z(), color, vertex.u, vertex.v, overlay, light, nx, ny, nz);
+            }
+        }
     }
 }

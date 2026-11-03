@@ -67,6 +67,8 @@ public final class NimbusPages {
                     .afterApply(Terrain::toggled).impact(OptionImpact.HIGH));
             toggle(engine, "nimbus_mesher", c -> c.nimbusMesher, (c, v) -> c.nimbusMesher = v)
                     .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer);
+            toggle(engine, "gpu_frustum", c -> c.gpuFrustum, (c, v) -> c.gpuFrustum = v)
+                    .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
             toggle(engine, "gpu_occlusion", c -> c.gpuOcclusion, (c, v) -> c.gpuOcclusion = v)
                     .visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
             toggle(engine, "own_traversal", c -> c.ownTraversal, (c, v) -> c.ownTraversal = v)

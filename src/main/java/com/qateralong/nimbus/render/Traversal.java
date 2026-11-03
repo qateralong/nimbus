@@ -226,16 +226,21 @@ public final class Traversal {
             rebuilds++;
             bfsNanos = ema(bfsNanos, System.nanoTime() - b0);
         }
-        if (!valid || grew || !Visibility.valid || Visibility.changes != ownChanges
-                || !contains(near, NEAR_MARGIN, frustum.camX - nearX, frustum.camY - nearY, frustum.camZ - nearZ)) {
+        boolean gpu = Terrain.gpuFrustum();
+        if (!valid || grew || !Visibility.valid || Visibility.changes != ownChanges || gpu != lastGpu
+                || !gpu && !contains(near, NEAR_MARGIN, frustum.camX - nearX, frustum.camY - nearY, frustum.camZ - nearZ)) {
+            lastGpu = gpu;
             widen(near, NEAR_WIDEN, NEAR_MARGIN);
             nearX = frustum.camX;
             nearY = frustum.camY;
             nearZ = frustum.camZ;
-            emit(ids, distance, minSection, camSx, camSz, nearX, nearY, nearZ);
+            emit(ids, distance, minSection, camSx, camSz, nearX, nearY, nearZ, gpu);
         } else {
             Visibility.refresh();
             ownChanges = Visibility.changes;
+        }
+        if (gpu) {
+            Visibility.cullBlockEntities(real, frustum.camX, frustum.camY, frustum.camZ);
         }
         if (output instanceof ObjectArrayList<SectionRenderDispatcher.RenderSection> list) {
             list.addElements(list.size(), Visibility.allSections, 0, Visibility.allCount);
@@ -751,7 +756,10 @@ public final class Traversal {
         return true;
     }
 
-    private static void emit(int[] ids, int distance, int minSection, int camSx, int camSz, double fx, double fy, double fz) {
+    private static boolean lastGpu;
+
+    // gpu: the GPU tests every draw against the frustum, so the whole widened search is shown
+    private static void emit(int[] ids, int distance, int minSection, int camSx, int camSz, double fx, double fy, double fz, boolean gpu) {
         if (++filterFrame == Integer.MAX_VALUE) {
             filterFrame = 1;
             Arrays.fill(realFrame, 0);
@@ -773,6 +781,13 @@ public final class Traversal {
             int lx = packed & 0xFF;
             int lz = (packed >>> 8) & 0xFF;
             int c = lz * size + lx;
+            if (gpu) {
+                int id = cached[i];
+                hash = (hash ^ id) * 1099511628211L;
+                filtered = grow(filtered, count);
+                filtered[count++] = id;
+                continue;
+            }
             if (frames[c] != now) {
                 frames[c] = now;
                 int r = range(near, 4, ((camSx + lx - base) << 4) - fx, ((camSz + lz - base) << 4) - fz, fy);

@@ -30,6 +30,9 @@ public final class Occlusion {
     private static double camZ;
     private static long lastSubmit;
     public static int lastTargets;
+    // targets are only gathered in frames that will be submitted; the rest would be thrown away
+    private static boolean gather = true;
+    private static long lastFrame;
     public static int lastHidden;
     public static long lastNanos;
 
@@ -54,7 +57,9 @@ public final class Occlusion {
         if (!enabled()) {
             return false;
         }
-        collecting.add(new Target(id, Long.MIN_VALUE, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ));
+        if (gather) {
+            collecting.add(new Target(id, Long.MIN_VALUE, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ));
+        }
         return hiddenEntities.contains(id);
     }
 
@@ -63,12 +68,18 @@ public final class Occlusion {
             return false;
         }
         long key = pos.asLong();
-        collecting.add(new Target(0, key, pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1));
+        if (gather) {
+            collecting.add(new Target(0, key, pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1));
+        }
         return hiddenBlocks.contains(key);
     }
 
     static void frame(double x, double y, double z) {
         long now = System.nanoTime();
+        long frameNanos = lastFrame == 0L ? 0L : Math.min(INTERVAL, now - lastFrame);
+        lastFrame = now;
+        boolean gathered = gather;
+        gather = now + frameNanos - lastSubmit >= INTERVAL;
         if (!enabled()) {
             collecting.clear();
             if (!hiddenEntities.isEmpty() || !hiddenBlocks.isEmpty()) {
@@ -77,11 +88,12 @@ public final class Occlusion {
             }
             return;
         }
-        if (now - lastSubmit < INTERVAL || BUSY.get() || collecting.isEmpty() && hiddenEntities.isEmpty() && hiddenBlocks.isEmpty()) {
+        if (!gathered || now - lastSubmit < INTERVAL || BUSY.get() || collecting.isEmpty() && hiddenEntities.isEmpty() && hiddenBlocks.isEmpty()) {
             collecting.clear();
             return;
         }
         lastSubmit = now;
+        gather = frameNanos >= INTERVAL;
         synchronized (LOCK) {
             pending = collecting;
             camX = x;

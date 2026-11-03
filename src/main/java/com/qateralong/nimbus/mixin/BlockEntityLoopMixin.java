@@ -16,7 +16,7 @@ public abstract class BlockEntityLoopMixin {
             target = "Lnet/minecraft/client/renderer/LevelRenderer;visibleSections:Lit/unimi/dsi/fastutil/objects/ObjectArrayList;"))
     private ObjectArrayList<SectionRenderDispatcher.RenderSection> nimbus$withBlockEntities(LevelRenderer renderer) {
         if (Visibility.valid && NimbusConfig.get().enabled) {
-            return Visibility.WITH_BLOCK_ENTITIES;
+            return com.qateralong.nimbus.render.Terrain.gpuFrustum() ? Visibility.blockEntitiesInView() : Visibility.WITH_BLOCK_ENTITIES;
         }
         return ((LevelRendererAccessor) renderer).nimbus$visibleSections();
     }

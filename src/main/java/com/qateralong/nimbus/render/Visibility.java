@@ -115,6 +115,37 @@ public final class Visibility {
         }
     }
 
+    private static final ObjectArrayList<SectionRenderDispatcher.RenderSection> IN_VIEW = new ObjectArrayList<>();
+
+    public static ObjectArrayList<SectionRenderDispatcher.RenderSection> blockEntitiesInView() {
+        return IN_VIEW;
+    }
+
+    // With GPU frustum culling the shown set is the widened search, so block entities still need a CPU frustum test.
+    static void cullBlockEntities(float[] planes, double cameraX, double cameraY, double cameraZ) {
+        IN_VIEW.clear();
+        for (int s = 0, size = WITH_BLOCK_ENTITIES.size(); s < size; s++) {
+            SectionRenderDispatcher.RenderSection section = WITH_BLOCK_ENTITIES.get(s);
+            net.minecraft.core.BlockPos origin = section.getOrigin();
+            float lowX = (float) (origin.getX() - cameraX) - 2.0F;
+            float lowY = (float) (origin.getY() - cameraY) - 2.0F;
+            float lowZ = (float) (origin.getZ() - cameraZ) - 2.0F;
+            float highX = lowX + 20.0F;
+            float highY = lowY + 20.0F;
+            float highZ = lowZ + 20.0F;
+            boolean inside = true;
+            for (int p = 0; p < 6 && inside; p++) {
+                float a = planes[p * 4];
+                float b = planes[p * 4 + 1];
+                float c = planes[p * 4 + 2];
+                inside = a * (a >= 0.0F ? highX : lowX) + b * (b >= 0.0F ? highY : lowY) + c * (c >= 0.0F ? highZ : lowZ) + planes[p * 4 + 3] >= 0.0F;
+            }
+            if (inside) {
+                IN_VIEW.add(section);
+            }
+        }
+    }
+
     public static void invalidate() {
         valid = false;
         WITH_BLOCK_ENTITIES.clear();

@@ -197,6 +197,8 @@
   "nimbus.option.section_light_cache.tip": "While building a chunk, light at each position is computed once per section instead of again for every neighbouring block.",
   "nimbus.option.nimbus_mesher": "Own mesher",
   "nimbus.option.nimbus_mesher.tip": "Nimbus builds chunk geometry straight into its renderer format with no intermediate repacking, so chunks build faster.",
+  "nimbus.option.gpu_frustum": "GPU view culling",
+  "nimbus.option.gpu_frustum.tip": "The video card picks the chunks in view every frame, so turning the camera costs the processor almost nothing.",
   "nimbus.option.gpu_occlusion": "GPU occlusion culling",
   "nimbus.option.gpu_occlusion.tip": "The video card hides chunks that are fully covered by hills and buildings before drawing them. Most effective in caves, cities and mountains.",
   "nimbus.option.terrain_renderer": "Nimbus terrain renderer",

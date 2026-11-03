@@ -63,6 +63,8 @@ public final class NimbusConfig {
     public boolean ownTraversal = true;
     public boolean nimbusMesher = true;
     public boolean gpuOcclusion = false;
+    public boolean gpuFrustum = true;
+    public boolean signTextCache = true;
     public boolean sectionLightCache = true;
     public boolean entityLightCache = true;
     public boolean entityGrouping = true;

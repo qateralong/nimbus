@@ -169,6 +169,11 @@ public final class Terrain {
         return Traversal.enabled() ? text + ", " + Traversal.debug() : text;
     }
 
+    // GPU per-draw frustum test; Hi-Z occlusion writes the same instance counts, so the two never run together
+    public static boolean gpuFrustum() {
+        return active() && NimbusConfig.get().gpuFrustum && !NimbusConfig.get().gpuOcclusion && GpuFrustum.available();
+    }
+
     public static boolean meshing() {
         return active() && NimbusConfig.get().nimbusMesher;
     }
@@ -602,6 +607,9 @@ public final class Terrain {
             draws = list.count;
             GpuTimer.quads(index, list.quads);
             if (draws > 0 && list.offset >= 0) {
+                if (gpuFrustum()) {
+                    GpuFrustum.cull(list, projection, modelView, x, y, z);
+                }
                 draw(layer, modelView, projection, list.offset, draws, x, y, z);
             }
         }
