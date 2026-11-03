@@ -36,6 +36,7 @@
     "CompileSectionsMixin",
     "ConnectTimingMixin",
     "DebugCacheMixin",
+    "DebugOverlayAccessor",
     "DebugScreenOverlayMixin",
     "DecoratedPotMixin",
     "EndGatewayBeamMixin",

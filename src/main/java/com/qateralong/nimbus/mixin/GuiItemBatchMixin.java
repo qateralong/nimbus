@@ -65,6 +65,7 @@ public abstract class GuiItemBatchMixin {
             }
             this.nimbus$pending = true;
             this.nimbus$pendingFlat = flat;
+            com.qateralong.nimbus.render.GuiBatch.itemQueued(flat);
         }
         original.call(renderer, stack, context, left, pose, buffers, light, overlay, model);
     }
@@ -96,6 +97,7 @@ public abstract class GuiItemBatchMixin {
 
     @Inject(method = "flush", at = @At("RETURN"))
     private void nimbus$unlight(CallbackInfo ci) {
+        com.qateralong.nimbus.render.GuiBatch.itemsFlushed();
         if (this.nimbus$lit) {
             this.nimbus$lit = false;
             Lighting.setupFor3DItems();

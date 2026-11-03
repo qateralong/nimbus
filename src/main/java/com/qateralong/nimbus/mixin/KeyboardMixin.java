@@ -13,4 +13,11 @@ public abstract class KeyboardMixin {
     private void nimbus$input(CallbackInfo ci) {
         Idle.input();
     }
+
+    @Inject(method = "keyPress", at = @At("HEAD"))
+    private void nimbus$bug(long window, int key, int scanCode, int action, int modifiers, CallbackInfo ci) {
+        if (window == net.minecraft.client.Minecraft.getInstance().getWindow().getWindow()) {
+            com.qateralong.nimbus.BugReport.keyPressed(key, scanCode, action);
+        }
+    }
 }

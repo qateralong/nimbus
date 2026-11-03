@@ -11,6 +11,8 @@ public final class Visibility {
     public static boolean valid;
     static int[] ids = new int[4096];
     static int count;
+    private static int[] inIds = new int[4096];
+    private static int idsRound = 1;
     public static int[] allIds = new int[4096];
     public static SectionRenderDispatcher.RenderSection[] allSections = new SectionRenderDispatcher.RenderSection[4096];
     public static int allCount;
@@ -24,6 +26,7 @@ public final class Visibility {
         changes++;
         membership = SectionData.membership;
         count = 0;
+        idsRound++;
         java.util.Arrays.fill(allSections, 0, allCount, null);
         allCount = 0;
         WITH_BLOCK_ENTITIES.clear();
@@ -47,10 +50,7 @@ public final class Visibility {
         allSections[allCount++] = section;
         if (id < SectionData.mask.length) {
             if (SectionData.mask[id] != 0) {
-                if (count == ids.length) {
-                    ids = java.util.Arrays.copyOf(ids, ids.length * 2);
-                }
-                ids[count++] = id;
+                push(id);
             }
             if (SectionData.blockEntities[id]) {
                 WITH_BLOCK_ENTITIES.add(section);
@@ -87,6 +87,7 @@ public final class Visibility {
         SectionData.clearPending();
         changes++;
         count = 0;
+        idsRound++;
         WITH_BLOCK_ENTITIES.clear();
         for (int i = 0; i < allCount; i++) {
             int id = allIds[i];
@@ -94,10 +95,7 @@ public final class Visibility {
                 continue;
             }
             if (SectionData.mask[id] != 0) {
-                if (count == ids.length) {
-                    ids = java.util.Arrays.copyOf(ids, ids.length * 2);
-                }
-                ids[count++] = id;
+                push(id);
             }
             if (SectionData.blockEntities[id]) {
                 WITH_BLOCK_ENTITIES.add(allSections[i]);
@@ -105,11 +103,26 @@ public final class Visibility {
         }
     }
 
-    static void append(int id) {
+    // a section whose geometry went away keeps its place in ids, so it must not be appended a second time
+    private static boolean push(int id) {
+        if (id >= inIds.length) {
+            inIds = java.util.Arrays.copyOf(inIds, Math.max(inIds.length * 2, id + 1));
+        }
+        if (inIds[id] == idsRound) {
+            return false;
+        }
+        inIds[id] = idsRound;
         if (count == ids.length) {
             ids = java.util.Arrays.copyOf(ids, ids.length * 2);
         }
         ids[count++] = id;
+        return true;
+    }
+
+    static void append(int id) {
+        if (!push(id)) {
+            return;
+        }
         if (SectionData.blockEntities[id] && SectionData.sections[id] != null) {
             WITH_BLOCK_ENTITIES.add(SectionData.sections[id]);
         }
@@ -150,6 +163,7 @@ public final class Visibility {
         valid = false;
         WITH_BLOCK_ENTITIES.clear();
         count = 0;
+        idsRound++;
         java.util.Arrays.fill(allSections, 0, allCount, null);
         allCount = 0;
     }

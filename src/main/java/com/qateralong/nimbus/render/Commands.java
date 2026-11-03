@@ -42,6 +42,18 @@ final class Commands {
         }
     }
 
+    int instance(int index) {
+        return MemoryUtil.memGetInt(this.address + (long) index * STRIDE + 16);
+    }
+
+    int quads(int index) {
+        return MemoryUtil.memGetInt(this.address + (long) index * STRIDE) / 6;
+    }
+
+    int first(int index) {
+        return MemoryUtil.memGetInt(this.address + (long) index * STRIDE + 12) / 4;
+    }
+
     // Cuts the draws of marked sections (instance = section id), keeping the order of the rest.
     void remove(int[] marks, int stamp) {
         long base = this.address;

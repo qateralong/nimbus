@@ -66,12 +66,45 @@ public abstract class CompileSectionsMixin {
     @Shadow
     private SectionRenderDispatcher sectionRenderDispatcher;
 
+    @org.spongepowered.asm.mixin.Unique
+    private int nimbus$auditFrames;
+
+    @org.spongepowered.asm.mixin.Unique
+    private long nimbus$auditLogged;
+
+    // Safety net: a dirty section the fast dirty list lost would never be built again.
+    @org.spongepowered.asm.mixin.Unique
+    private void nimbus$audit() {
+        int lost = 0;
+        for (int i = 0, size = this.visibleSections.size(); i < size; i++) {
+            SectionRenderDispatcher.RenderSection section = this.visibleSections.get(i);
+            int id = ((SectionStamp) section).nimbus$id();
+            if (section.isDirty() && !com.qateralong.nimbus.render.SectionData.tracked(id)) {
+                com.qateralong.nimbus.render.SectionData.setDirty(id, true);
+                lost++;
+            }
+        }
+        if (lost > 0) {
+            com.qateralong.nimbus.render.SectionData.recovered += lost;
+            long now = System.currentTimeMillis();
+            if (now - this.nimbus$auditLogged > 10_000L) {
+                this.nimbus$auditLogged = now;
+                Nimbus.LOGGER.warn("Nimbus: {} lost section updates recovered ({} total)", lost, com.qateralong.nimbus.render.SectionData.recovered);
+            }
+        }
+    }
+
     @Inject(method = "compileSections", at = @At("HEAD"), cancellable = true)
     private void nimbus$compile(Camera camera, CallbackInfo ci) {
+        com.qateralong.nimbus.render.SectionData.drain();
         if (!NimbusConfig.get().enabled) {
             return;
         }
         ci.cancel();
+        if (++this.nimbus$auditFrames >= 20) {
+            this.nimbus$auditFrames = 0;
+            this.nimbus$audit();
+        }
         var profiler = this.minecraft.getProfiler();
         profiler.push("populate_sections_to_compile");
         LevelLightEngine light = this.level.getLightEngine();
@@ -133,6 +166,9 @@ public abstract class CompileSectionsMixin {
                 section = tracked ? sections[i] : this.visibleSections.get(i);
             }
             if (!section.isDirty()) {
+                if (picked != null) {
+                    com.qateralong.nimbus.render.SectionData.setDirty(((SectionStamp) section).nimbus$id(), false);
+                }
                 continue;
             }
             SectionStamp stamp = (SectionStamp) section;

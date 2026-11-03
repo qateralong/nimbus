@@ -84,6 +84,7 @@ public final class GuiBatch {
 
     public static void endFrame() {
         drawing = 0;
+        items = false;
         flushText();
         if (depth > 0) {
             flush();
@@ -135,6 +136,39 @@ public final class GuiBatch {
             builder = new BufferBuilder(MEMORY, VertexFormat.Mode.QUADS, next == PLAIN ? DefaultVertexFormat.POSITION_TEX : DefaultVertexFormat.POSITION_TEX_COLOR);
         } else {
             merged++;
+        }
+    }
+
+    private static boolean items;
+    private static boolean itemsFlat;
+
+    // Item icons wait in the fixed buffers while their count text goes through the shared one; screens draw
+    // without depth test, so the icons must reach the screen before any later geometry.
+    public static void itemQueued(boolean flat) {
+        items = true;
+        itemsFlat = flat;
+    }
+
+    public static void itemsFlushed() {
+        items = false;
+    }
+
+    public static boolean itemsPending() {
+        return items;
+    }
+
+    public static void drawItems(Runnable draw) {
+        items = false;
+        boolean flat = itemsFlat;
+        if (flat) {
+            com.mojang.blaze3d.platform.Lighting.setupForFlatItems();
+        }
+        try {
+            draw.run();
+        } finally {
+            if (flat) {
+                com.mojang.blaze3d.platform.Lighting.setupFor3DItems();
+            }
         }
     }
 

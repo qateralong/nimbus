@@ -82,6 +82,18 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Inject(method = "setCompiled", at = @At("RETURN"))
     private void nimbus$compiled(SectionRenderDispatcher.CompiledSection compiled, CallbackInfo ci) {
+        if (com.qateralong.nimbus.render.SectionData.later(() -> this.nimbus$compiledNow(((SectionRenderDispatcher.RenderSection) (Object) this).getCompiled()))) {
+            return;
+        }
+        this.nimbus$compiledNow(compiled);
+    }
+
+    @Unique
+    private void nimbus$compiledNow(SectionRenderDispatcher.CompiledSection compiled) {
+        if (com.qateralong.nimbus.render.SectionData.sections.length <= this.nimbus$id
+                || com.qateralong.nimbus.render.SectionData.sections[this.nimbus$id] != (Object) this) {
+            return;
+        }
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, !compiled.getRenderableBlockEntities().isEmpty());
         com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, compiled);
         Terrain.compiled(this, compiled);
@@ -97,12 +109,24 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Inject(method = "setDirty", at = @At("RETURN"))
     private void nimbus$dirty(boolean player, CallbackInfo ci) {
-        com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
+        if (!com.qateralong.nimbus.render.SectionData.later(this::nimbus$syncDirty)) {
+            com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
+        }
     }
 
     @Inject(method = "setNotDirty", at = @At("RETURN"))
     private void nimbus$clean(CallbackInfo ci) {
-        com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, false);
+        if (!com.qateralong.nimbus.render.SectionData.later(this::nimbus$syncDirty)) {
+            com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, false);
+        }
+    }
+
+    @Unique
+    private void nimbus$syncDirty() {
+        if (com.qateralong.nimbus.render.SectionData.sections.length > this.nimbus$id
+                && com.qateralong.nimbus.render.SectionData.sections[this.nimbus$id] == (Object) this) {
+            com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, ((SectionRenderDispatcher.RenderSection) (Object) this).isDirty());
+        }
     }
 
     @Override

@@ -272,5 +272,11 @@
   "nimbus.option.own_traversal": "Own visible section search",
   "nimbus.option.own_traversal.tip": "Section search with a view margin instead of the vanilla background graph. Reruns only when the camera leaves the margin or sections change.",
   "nimbus.option.own_translucent_sort": "Own translucency sorting",
-  "nimbus.option.own_translucent_sort.tip": "Water and glass are sorted on worker threads straight from packed vertices; the main thread only uploads the result. Flat water surfaces are not sorted at all."
+  "nimbus.option.own_translucent_sort.tip": "Water and glass are sorted on worker threads straight from packed vertices; the main thread only uploads the result. Flat water surfaces are not sorted at all.",
+  "key.nimbus.bug": "Report a bug",
+  "nimbus.bug.title": "Nimbus",
+  "nimbus.bug.saved": "%s saved",
+  "nimbus.bug.failed": "Could not save the bug report, see the log",
+  "nimbus.bug.chat": "[Nimbus] %s saved to %s — send the file to the developer",
+  "nimbus.bug.hint": "[Nimbus %s] Test build: if you see a bug, press %s — a report is saved to nimbus-bugs"
 }

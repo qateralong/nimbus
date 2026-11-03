@@ -56,6 +56,7 @@ public class Nimbus implements ClientModInitializer {
         com.qateralong.nimbus.api.NimbusOptionsApi.builtin(NimbusPages::register);
         toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
+        BugReport.key = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.bug", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, "key.categories.nimbus"));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof net.minecraft.client.gui.screens.TitleScreen) {
                 Startup.titleScreen();
@@ -66,6 +67,7 @@ public class Nimbus implements ClientModInitializer {
             }
         });
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((graphics, delta) -> FpsOverlay.render(graphics));
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> BugReport.joined(client));
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> com.qateralong.nimbus.render.Terrain.init());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ticks++;

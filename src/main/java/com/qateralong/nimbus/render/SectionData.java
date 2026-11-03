@@ -91,36 +91,62 @@ public final class SectionData {
         visibleFrame[id] = -1;
     }
 
+    private static final java.util.concurrent.ConcurrentLinkedQueue<Runnable> LATER = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static boolean[] inList = new boolean[4096];
+    public static int recovered;
+
+    // Vanilla marks sections dirty from build threads too (a cancelled build); the lists here are render-thread only.
+    public static boolean later(Runnable task) {
+        if (com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()) {
+            return false;
+        }
+        LATER.add(task);
+        return true;
+    }
+
+    public static void drain() {
+        for (Runnable task; (task = LATER.poll()) != null; ) {
+            task.run();
+        }
+    }
+
     public static void setDirty(int id, boolean value) {
-        if (id < 0 || id >= dirty.length || dirty[id] == value) {
+        if (id < 0 || id >= dirty.length) {
             return;
         }
-        dirty[id] = value;
-        if (!value) {
-            dirtyCount--;
-            return;
+        if (dirty[id] != value) {
+            dirty[id] = value;
+            dirtyCount += value ? 1 : -1;
         }
-        dirtyCount++;
-        if (dirtyListed == dirtyIds.length) {
-            compactDirty();
-            if (dirtyListed * 2 > dirtyIds.length) {
-                dirtyIds = Arrays.copyOf(dirtyIds, dirtyIds.length * 2);
+        if (value && !inList[id]) {
+            if (dirtyListed == dirtyIds.length) {
+                compactDirty();
+                if (dirtyListed * 2 > dirtyIds.length) {
+                    dirtyIds = Arrays.copyOf(dirtyIds, dirtyIds.length * 2);
+                }
             }
+            inList[id] = true;
+            dirtyIds[dirtyListed++] = id;
         }
-        dirtyIds[dirtyListed++] = id;
+    }
+
+    public static boolean tracked(int id) {
+        return id >= 0 && id < dirty.length && dirty[id] && inList[id];
     }
 
     public static void compactDirty() {
         int kept = 0;
         for (int i = 0; i < dirtyListed; i++) {
             int id = dirtyIds[i];
-            if (dirty[id]) {
+            if (dirty[id] && inList[id]) {
                 dirtyIds[kept++] = id;
-                dirty[id] = false;
+                inList[id] = false;
+            } else {
+                inList[id] = false;
             }
         }
         for (int i = 0; i < kept; i++) {
-            dirty[dirtyIds[i]] = true;
+            inList[dirtyIds[i]] = true;
         }
         dirtyListed = kept;
     }
@@ -143,6 +169,7 @@ public final class SectionData {
         blockEntities = Arrays.copyOf(blockEntities, size);
         records = Arrays.copyOf(records, size * ID_STRIDE);
         dirty = Arrays.copyOf(dirty, size);
+        inList = Arrays.copyOf(inList, size);
         order = Arrays.copyOf(order, size);
         sections = Arrays.copyOf(sections, size);
         animated = Arrays.copyOf(animated, size * LAYERS);

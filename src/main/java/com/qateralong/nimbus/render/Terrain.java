@@ -87,6 +87,14 @@ public final class Terrain {
     private Terrain() {
     }
 
+    static Commands[] lists() {
+        return LISTS;
+    }
+
+    static float fogLimit() {
+        return fogLimit;
+    }
+
     public static boolean supported() {
         return !SODIUM;
     }

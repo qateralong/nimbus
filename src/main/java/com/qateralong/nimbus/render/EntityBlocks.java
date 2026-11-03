@@ -43,7 +43,7 @@ public final class EntityBlocks {
     }
 
     public static BakedModel bake(ModelResourceLocation id, BakedModel original, Function<Material, TextureAtlasSprite> textures) {
-        if (id == null || !id.id().getNamespace().equals("minecraft")) {
+        if (id == null || !id.id().getNamespace().equals("minecraft") || ModelResourceLocation.INVENTORY_VARIANT.equals(id.variant())) {
             return null;
         }
         String path = id.id().getPath();
