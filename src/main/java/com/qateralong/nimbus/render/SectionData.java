@@ -55,9 +55,13 @@ public final class SectionData {
                 }
             }
         }
-        if (visibility[id] != mask) {
+        long old = visibility[id];
+        if (old != mask) {
             visibility[id] = mask;
-            changed++;
+            // gains are expanded by the traversal right away, only lost connections need the lazy full search
+            if ((old & ~mask) != 0L) {
+                changed++;
+            }
             if (Traversal.onMask(id, mask)) {
                 graph++;
             }

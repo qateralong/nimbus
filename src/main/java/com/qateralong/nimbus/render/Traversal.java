@@ -63,6 +63,13 @@ public final class Traversal {
     private static final int FRAME_MASK = -1 << FRAME_SHIFT;
     private static final int MAX_FRAME = 1 << 18;
     private static int[] state = new int[0];
+    private static int[] packedOf = new int[0];
+    // per slot: search frame << 3 | axes whose line of sight already passed in that search
+    private static int[] rayMemo = new int[0];
+    private static final int REVISIT = 1 << 30;
+    private static final Object GAINED_LOCK = new Object();
+    private static int[] gained = new int[256];
+    private static int gainedCount;
     private static long[] slotMasks = new long[0];
     // mask each visited slot was expanded with in the last search, -1 when it ignored the mask
     private static long[] usedMasks = new long[0];
@@ -101,8 +108,6 @@ public final class Traversal {
     private static int keyChanged;
     private static int framesCached;
     private static final int LAZY_FRAMES = 20;
-    // new connections wait up to this many frames, vanilla's async graph lags about as much
-    private static final int GAIN_FRAMES = 3;
     private static int keyMoves;
     private static int keyChunks;
     private static int keyDistance;
@@ -164,9 +169,16 @@ public final class Traversal {
         int moves = Origins.moves;
 
         rays(matrix);
-        boolean valid = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz && (graph == keyGraph || framesCached < GAIN_FRAMES)
+        boolean valid = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz
                 && moves == keyMoves && chunks == keyChunks && (changed == keyChanged || framesCached < LAZY_FRAMES) && distance == keyDistance && cull == keyCull
                 && contains(wide, MARGIN, frustum.camX - originX, frustum.camY - originY, frustum.camZ - originZ);
+        boolean grew = false;
+        if (valid && graph != keyGraph) {
+            int before = cachedCount;
+            extend(ids, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+            keyGraph = graph;
+            grew = cachedCount != before;
+        }
         if (!valid) {
             long b0 = System.nanoTime();
             widen(wide, WIDEN, MARGIN);
@@ -198,7 +210,7 @@ public final class Traversal {
             rebuilds++;
             bfsNanos = ema(bfsNanos, System.nanoTime() - b0);
         }
-        if (!valid || !Visibility.valid || Visibility.changes != ownChanges
+        if (!valid || grew || !Visibility.valid || Visibility.changes != ownChanges
                 || !contains(near, NEAR_MARGIN, frustum.camX - nearX, frustum.camY - nearY, frustum.camZ - nearZ)) {
             widen(near, NEAR_WIDEN, NEAR_MARGIN);
             nearX = frustum.camX;
@@ -403,6 +415,7 @@ public final class Traversal {
         if (++frame == MAX_FRAME) {
             frame = 1;
             Arrays.fill(state, 0);
+            Arrays.fill(rayMemo, 0);
         }
         int now = frame;
         visitFrame = now;
@@ -410,15 +423,13 @@ public final class Traversal {
         int size = side;
         int base = distance + 1;
         int[] st = state;
-        long[] masks = slotMasks;
-        long[] used = usedMasks;
         short[] lo = wideLo;
         short[] hi = wideHi;
         int[] wx = wrapX;
         int[] wz = wrapZ;
-        double camX = cameraX;
-        double camY = cameraY;
-        double camZ = cameraZ;
+        synchronized (GAINED_LOCK) {
+            gainedCount = 0;
+        }
         int tail = 0;
 
         if (camSy >= minSection && camSy < minSection + sizeY) {
@@ -451,20 +462,44 @@ public final class Traversal {
                 }
             }
         }
+        return propagate(0, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+    }
 
-        int head = 0;
+    private static int propagate(int head, int tail, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
+        int now = frame;
+        int mark = now << FRAME_SHIFT;
+        int[] passed = rayMemo;
+        int size = side;
+        int base = distance + 1;
+        int[] st = state;
+        long[] masks = slotMasks;
+        long[] used = usedMasks;
+        short[] lo = wideLo;
+        short[] hi = wideHi;
+        int[] wx = wrapX;
+        int[] wz = wrapZ;
+        double camX = cameraX;
+        double camY = cameraY;
+        double camZ = cameraZ;
+        int centerX = (camSx << 4) + 8;
+        int centerY = (camSy << 4) + 8;
+        int centerZ = (camSz << 4) + 8;
         while (head < tail) {
             int packed = queue[head];
             int cur = slots[head++];
             int lx = packed & 0xFF;
             int lz = (packed >>> 8) & 0xFF;
-            int gy = packed >>> 16;
+            int gy = (packed >>> 16) & 0x3FFF;
             int bits = st[cur];
             int moved = (bits >>> 6) & 63;
             int from = bits & 63;
             long mask = cull && from != 0 ? masks[cur] : -1L;
             used[cur] = mask;
             int entries = ENTRY_FACES[from];
+            int ox = (camSx + lx - base) << 4;
+            int oy = (gy + minSection) << 4;
+            int oz = (camSz + lz - base) << 4;
+            boolean far = cull && (Math.abs(ox - centerX) > 60 || Math.abs(oy - centerY) > 60 || Math.abs(oz - centerZ) > 60);
             for (int d = 0; d < 6; d++) {
                 if (cull && (moved & (1 << OPPOSITE[d])) != 0) {
                     continue;
@@ -482,10 +517,23 @@ public final class Traversal {
                 }
                 int slot = (wz[nz] * sizeY + ngy) * sizeX + wx[nx];
                 int seen = st[slot];
-                if ((seen & FRAME_MASK) == mark) {
-                    if ((seen & REJECTED) == 0) {
-                        st[slot] = seen | (1 << d);
+                boolean visited = (seen & FRAME_MASK) == mark;
+                if (visited && (seen & (REJECTED | 1 << d)) != 0) {
+                    continue;
+                }
+                if (far) {
+                    int axis = d >> 1;
+                    int memo = passed[slot];
+                    if (memo >>> 3 != now || (memo >>> axis & 1) == 0) {
+                        if (!lineOfSight(d, ox + (DX[d] << 4), oy + (DY[d] << 4), oz + (DZ[d] << 4), centerX, centerY, centerZ,
+                                camX, camY, camZ, camSx, camSz, base, size, minSection, sizeX, sizeY, mark)) {
+                            continue;
+                        }
+                        passed[slot] = (memo >>> 3 == now ? memo : now << 3) | 1 << axis;
                     }
+                }
+                if (visited) {
+                    st[slot] = seen | (1 << d);
                     continue;
                 }
                 // vanilla hasAllNeighbors(): side chunks only matter beyond 24 blocks
@@ -505,6 +553,95 @@ public final class Traversal {
         return tail;
     }
 
+    // Like vanilla's partial update: sections that gained connections are expanded again on top of the cached search.
+    private static void extend(int[] ids, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
+        int start = cachedCount;
+        int tail = start;
+        synchronized (GAINED_LOCK) {
+            for (int i = 0; i < gainedCount; i++) {
+                int slot = gained[i];
+                if (tail == queue.length) {
+                    queue = Arrays.copyOf(queue, tail * 2);
+                    slots = Arrays.copyOf(slots, tail * 2);
+                }
+                queue[tail] = packedOf[slot] | REVISIT;
+                slots[tail++] = slot;
+            }
+            gainedCount = 0;
+        }
+        if (tail == start) {
+            return;
+        }
+        tail = propagate(start, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+        int[] packedQueue = queue;
+        int[] slotQueue = slots;
+        int count = start;
+        for (int i = start; i < tail; i++) {
+            if ((packedQueue[i] & REVISIT) == 0) {
+                packedQueue[count] = packedQueue[i];
+                slotQueue[count++] = slotQueue[i];
+            }
+        }
+        if (cachedIds.length < count) {
+            cachedIds = Arrays.copyOf(cachedIds, Math.max(count, cachedIds.length * 2));
+        }
+        for (int i = start; i < count; i++) {
+            cachedIds[i] = ids[slotQueue[i]];
+        }
+        cachedCount = count;
+    }
+
+    // Vanilla's far-section rule: walking from the neighbour towards the camera must only cross sections already reached.
+    private static boolean lineOfSight(int d, int nx, int ny, int nz, int centerX, int centerY, int centerZ, double camX, double camY, double camZ,
+                                       int camSx, int camSz, int base, int size, int minSection, int sizeX, int sizeY, int mark) {
+        boolean axisX = d >= 4;
+        boolean axisY = d < 2;
+        boolean axisZ = !axisX && !axisY;
+        double vx = nx + ((axisX ? centerX > nx : centerX < nx) ? 16 : 0);
+        double vy = ny + ((axisY ? centerY > ny : centerY < ny) ? 16 : 0);
+        double vz = nz + ((axisZ ? centerZ > nz : centerZ < nz) ? 16 : 0);
+        double dx = camX - vx;
+        double dy = camY - vy;
+        double dz = camZ - vz;
+        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (length < 1.0E-4) {
+            return true;
+        }
+        double scale = CEILED_SECTION_DIAGONAL / length;
+        double sx = dx * scale;
+        double sy = dy * scale;
+        double sz = dz * scale;
+        double minY = minSection << 4;
+        double maxY = (minSection + sizeY) << 4;
+        int[] st = state;
+        int[] wx = wrapX;
+        int[] wz = wrapZ;
+        while (dx * dx + dy * dy + dz * dz > 3600.0) {
+            vx += sx;
+            vy += sy;
+            vz += sz;
+            dx = camX - vx;
+            dy = camY - vy;
+            dz = camZ - vz;
+            if (vy > maxY || vy < minY) {
+                return true;
+            }
+            int lx = ((int) Math.floor(vx) >> 4) - camSx + base;
+            int lz = ((int) Math.floor(vz) >> 4) - camSz + base;
+            int gy = ((int) Math.floor(vy) >> 4) - minSection;
+            if (lx < 0 || lz < 0 || lx >= size || lz >= size || gy < 0 || gy >= sizeY) {
+                return false;
+            }
+            int bits = st[(wz[lz] * sizeY + gy) * sizeX + wx[lx]];
+            if ((bits & FRAME_MASK) != mark || (bits & REJECTED) != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static final double CEILED_SECTION_DIAGONAL = Math.ceil(Math.sqrt(3.0) * 16.0);
+
     // Called when a section's visibility mask changes; true if the cached search read that section.
     public static boolean onMask(int id, long mask) {
         int[] slotOf = SectionData.slotOf;
@@ -519,7 +656,16 @@ public final class Traversal {
         masks[slot] = mask;
         int bits = state[slot];
         // lost connections only leave extra sections in the cached result, which is safe; the lazy path drops them
-        return (bits & FRAME_MASK) == visitFrame << FRAME_SHIFT && (bits & REJECTED) == 0 && (mask & ~usedMasks[slot]) != 0L;
+        if ((bits & FRAME_MASK) != visitFrame << FRAME_SHIFT || (bits & REJECTED) != 0 || (mask & ~usedMasks[slot]) == 0L) {
+            return false;
+        }
+        synchronized (GAINED_LOCK) {
+            if (gainedCount == gained.length) {
+                gained = Arrays.copyOf(gained, gainedCount * 2);
+            }
+            gained[gainedCount++] = slot;
+        }
+        return true;
     }
 
     private static void emit(int[] ids, int distance, int minSection, int camSx, int camSz, double fx, double fy, double fz) {
@@ -602,8 +748,10 @@ public final class Traversal {
             queue = Arrays.copyOf(queue, tail * 2);
             slots = Arrays.copyOf(slots, tail * 2);
         }
-        queue[tail] = lx | lz << 8 | gy << 16;
+        int packed = lx | lz << 8 | gy << 16;
+        queue[tail] = packed;
         slots[tail] = slot;
+        packedOf[slot] = packed;
         return tail + 1;
     }
 
@@ -615,6 +763,8 @@ public final class Traversal {
             }
             gridIds = ids;
             state = new int[grid.length];
+            packedOf = new int[grid.length];
+            rayMemo = new int[grid.length];
             frame = 0;
             visitFrame = -1;
             long[] masks = new long[grid.length];
