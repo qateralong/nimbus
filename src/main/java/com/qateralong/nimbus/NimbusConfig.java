@@ -80,7 +80,7 @@ public final class NimbusConfig {
     public boolean bellModels = true;
     public boolean potModels = true;
     public boolean sky = true;
-    public boolean fog = true;
+    public boolean fog = false;
     public boolean weather = true;
     public boolean vignette = true;
     public boolean beaconBeams = true;
