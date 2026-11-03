@@ -2,7 +2,6 @@ package com.qateralong.nimbus.mixin;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.qateralong.nimbus.render.FastVertices;
 import org.spongepowered.asm.mixin.Final;
@@ -43,8 +42,8 @@ public abstract class BufferBuilderMixin implements FastVertices {
     protected abstract void endLastVertex();
 
     @Override
-    public long nimbus$reserveEntity(int count) {
-        if (count <= 0 || !this.building || this.format != DefaultVertexFormat.NEW_ENTITY || this.mode != VertexFormat.Mode.QUADS || this.vertexSize != 36) {
+    public long nimbus$reserve(VertexFormat format, int count) {
+        if (count <= 0 || !this.building || this.format != format || this.mode != VertexFormat.Mode.QUADS) {
             return 0L;
         }
         this.endLastVertex();

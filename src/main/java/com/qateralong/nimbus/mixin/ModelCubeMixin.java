@@ -98,7 +98,7 @@ public abstract class ModelCubeMixin {
         }
         int[] indices = this.nimbus$indices;
         if (NIMBUS_LITTLE_ENDIAN && consumer instanceof com.qateralong.nimbus.render.FastVertices fast) {
-            long base = fast.nimbus$reserveEntity(indices.length);
+            long base = fast.nimbus$reserve(com.mojang.blaze3d.vertex.DefaultVertexFormat.NEW_ENTITY, indices.length);
             if (base != 0L) {
                 this.nimbus$write(base, pose, out, indices, light, overlay, color);
                 return;
