@@ -175,6 +175,10 @@
   "nimbus.option.stream_uploads.tip": "Mobs, items and interface are uploaded to the GPU through one persistent ring buffer instead of reallocating a buffer for every batch. Off when ImmediatelyFast is installed. Requires restart.",
   "nimbus.option.biome_cache": "Biome lookup cache",
   "nimbus.option.biome_cache.tip": "Sky and fog colour, ambient block effects: repeated biome lookups within a tick are served from a cache. Same result as vanilla.",
+  "nimbus.option.fast_biome_blend": "Fast biome blending",
+  "nimbus.option.fast_biome_blend.tip": "Grass, foliage and water colours are sampled once per section layer while building a chunk and blurred in two passes. Same colours as vanilla, much faster chunk builds with a large blend radius.",
+  "nimbus.option.fast_clouds": "Fast clouds",
+  "nimbus.option.fast_clouds.tip": "Clouds are meshed once in white and tinted by the shader, so time-of-day and weather colour changes no longer rebuild the cloud mesh.",
   "nimbus.option.entity_light_cache": "Entity light cache",
   "nimbus.option.entity_light_cache.tip": "Mob and item lighting is read from the light engine once per tick instead of every frame.",
   "nimbus.option.entity_grouping": "Entity grouping",
@@ -259,5 +263,12 @@
   "nimbus.group.background": "In the background",
   "nimbus.group.ticking": "Ticking",
   "nimbus.group.optimizations": "Optimizations",
-  "nimbus.option.preset": "Sacrifices"
+  "nimbus.option.preset": "Sacrifices",
+  "nimbus.engine.fallback": "Nimbus: own engine is off",
+  "nimbus.engine.no_gl46": "OpenGL 4.6 is required, the vanilla renderer draws the world",
+  "nimbus.engine.failed": "The engine failed to start, the vanilla renderer draws the world. See the log",
+  "nimbus.option.own_traversal": "Own visible section search",
+  "nimbus.option.own_traversal.tip": "Section search with a view margin instead of the vanilla background graph. Reruns only when the camera leaves the margin or sections change.",
+  "nimbus.option.own_translucent_sort": "Own translucency sorting",
+  "nimbus.option.own_translucent_sort.tip": "Water and glass are sorted on worker threads straight from packed vertices; the main thread only uploads the result. Flat water surfaces are not sorted at all."
 }

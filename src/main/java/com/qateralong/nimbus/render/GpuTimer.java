@@ -11,7 +11,7 @@ public final class GpuTimer {
     private static final int FRAMES = 4;
     private static final int LAYERS = 5;
     private static final int POINTS = 2 + LAYERS * 2;
-    private static final boolean ENABLED = System.getProperty("nimbus.bench") != null || Boolean.getBoolean("nimbus.gputimer");
+    private static final boolean ENABLED = (System.getProperty("nimbus.bench") != null && !"prod".equals(System.getProperty("nimbus.bench"))) || Boolean.getBoolean("nimbus.gputimer");
     private static final boolean[] issued = new boolean[FRAMES * POINTS];
     private static final double[] layerSum = new double[LAYERS];
     private static final long[] quadSum = new long[LAYERS];

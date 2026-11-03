@@ -20,7 +20,8 @@ public final class PackedBuilder extends BufferBuilder {
     private final long[] data = new long[Faces.GROUPS];
     private final int[] capacity = new int[Faces.GROUPS];
     private final int[] counts = new int[Faces.GROUPS];
-    private final float[] planes = {Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE};
+    // negative-facing groups keep the highest plane (max), positive-facing the lowest (min)
+    private final float[] planes = {-Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE};
     private final float[] x = new float[4];
     private final float[] y = new float[4];
     private final float[] z = new float[4];
@@ -29,7 +30,6 @@ public final class PackedBuilder extends BufferBuilder {
     private final int[] color = new int[4];
     private final int[] light = new int[4];
     private final Vector3f scratch = new Vector3f();
-    private float[] centroids = new float[0];
     private long[] sprites;
     private int corner;
     private boolean open;
@@ -169,7 +169,7 @@ public final class PackedBuilder extends BufferBuilder {
     }
 
     private int group() {
-        return this.translucent ? Faces.UNASSIGNED : direction(this.x, this.y, this.z);
+        return direction(this.x, this.y, this.z);
     }
 
     static int direction(float[] x, float[] y, float[] z) {
@@ -230,14 +230,6 @@ public final class PackedBuilder extends BufferBuilder {
             MemoryUtil.memPutInt(t + 12, this.color[i]);
         }
         this.counts[group] = index + 1;
-        if (this.translucent) {
-            if (this.centroids.length < (index + 1) * 3) {
-                this.centroids = java.util.Arrays.copyOf(this.centroids, Math.max(192, this.centroids.length * 2));
-            }
-            this.centroids[index * 3] = (this.x[0] + this.x[2]) / 2.0F;
-            this.centroids[index * 3 + 1] = (this.y[0] + this.y[2]) / 2.0F;
-            this.centroids[index * 3 + 2] = (this.z[0] + this.z[2]) / 2.0F;
-        }
         if (sprite >= 0) {
             if (this.sprites == null || this.sprites.length <= sprite >>> 6) {
                 this.sprites = this.sprites == null ? new long[(sprite >>> 6) + 1] : java.util.Arrays.copyOf(this.sprites, (sprite >>> 6) + 1);
@@ -278,20 +270,27 @@ public final class PackedBuilder extends BufferBuilder {
                 }
                 offsets[group + 1] = offsets[group] + count;
             }
+            Vector3f[] sorted = null;
+            if (this.translucent) {
+                // vanilla's centroid (first and third corner), read back from the final group-ordered layout
+                sorted = new Vector3f[quads];
+                for (int i = 0; i < quads; i++) {
+                    long q = out + (long) i * QUAD;
+                    int a = MemoryUtil.memGetInt(q);
+                    int b = MemoryUtil.memGetInt(q + 32);
+                    int az = MemoryUtil.memGetInt(q + 4) & 0xFFFF;
+                    int bz = MemoryUtil.memGetInt(q + 36) & 0xFFFF;
+                    sorted[i] = new Vector3f(((a & 0xFFFF) + (b & 0xFFFF)) * (1.0F / 2048.0F) - 16.0F,
+                            ((a >>> 16) + (b >>> 16)) * (1.0F / 2048.0F) - 16.0F, (az + bz) * (1.0F / 2048.0F) - 16.0F);
+                }
+            }
             ByteBufferBuilder.Result result = this.target.build();
             if (result == null) {
                 return null;
             }
-            Vector3f[] sorted = null;
-            if (this.translucent) {
-                sorted = new Vector3f[quads];
-                for (int i = 0; i < quads; i++) {
-                    sorted[i] = new Vector3f(this.centroids[i * 3], this.centroids[i * 3 + 1], this.centroids[i * 3 + 2]);
-                }
-            }
             MeshData mesh = new MeshData(result, new MeshData.DrawState(DefaultVertexFormat.BLOCK, quads * 4, quads * 6, VertexFormat.Mode.QUADS,
                     VertexFormat.IndexType.least(quads * 4)));
-            ((PackedMesh) mesh).nimbus$setPacked(new Packed(this.translucent ? null : new Faces(offsets, this.planes.clone()),
+            ((PackedMesh) mesh).nimbus$setPacked(new Packed(new Faces(offsets, this.planes.clone()),
                     AnimatedSprites.indices(this.sprites), sorted));
             return mesh;
         } finally {

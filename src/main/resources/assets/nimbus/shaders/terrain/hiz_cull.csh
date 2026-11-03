@@ -1,5 +1,7 @@
 #version 460 core
 
+// Mode: 0 select last visible, 1 test opaque (draw newly visible), 2 test translucent, 3 no pyramid.
+
 layout(local_size_x = 64) in;
 
 layout(std430, binding = 0) buffer Commands {
@@ -14,18 +16,27 @@ layout(std430, binding = 2) buffer Stats {
     uint stats[];
 };
 
+layout(std430, binding = 3) readonly buffer VisiblePrev {
+    uint visiblePrev[];
+};
+
+layout(std430, binding = 4) writeonly buffer VisibleNext {
+    uint visibleNext[];
+};
+
 uniform uint CommandBase;
 uniform uint CommandCount;
 uniform uint StatsSlot;
-uniform mat4 PrevMvp;
-uniform ivec3 PrevBlock;
-uniform vec3 PrevFrac;
+uniform int Mode;
+uniform mat4 Mvp;
+uniform ivec3 CameraBlock;
+uniform vec3 CameraFrac;
 uniform sampler2D Pyramid;
 uniform ivec2 PyramidSize;
 uniform int PyramidLevels;
 
 bool occluded(ivec3 origin) {
-    vec3 low = vec3(origin - PrevBlock) - PrevFrac;
+    vec3 low = vec3(origin - CameraBlock) - CameraFrac;
     vec3 high = low + 16.0;
     if (all(lessThan(low, vec3(2.0))) && all(greaterThan(high, vec3(-2.0)))) {
         return false;
@@ -35,7 +46,7 @@ bool occluded(ivec3 origin) {
     float nearest = 1.0;
     for (int c = 0; c < 8; c++) {
         vec3 corner = vec3((c & 1) != 0 ? high.x : low.x, (c & 2) != 0 ? high.y : low.y, (c & 4) != 0 ? high.z : low.z);
-        vec4 clip = PrevMvp * vec4(corner, 1.0);
+        vec4 clip = Mvp * vec4(corner, 1.0);
         if (clip.w <= 0.05) {
             return false;
         }
@@ -68,8 +79,24 @@ void main() {
         return;
     }
     uint at = CommandBase + i * 5u;
-    if (occluded(origins[commands[at + 4u]].xyz)) {
-        commands[at + 1u] = 0u;
+    uint id = commands[at + 4u];
+    bool before = visiblePrev[id] != 0u;
+    if (Mode == 0) {
+        if (!before) {
+            commands[at + 1u] = 0u;
+        }
+        return;
+    }
+    if (Mode == 3) {
+        visibleNext[id] = 1u;
+        commands[at + 1u] = before ? 0u : 1u;
+        return;
+    }
+    bool hidden = occluded(origins[id].xyz);
+    visibleNext[id] = hidden ? 0u : 1u;
+    bool draw = Mode == 2 ? !hidden : (!hidden && !before);
+    commands[at + 1u] = draw ? 1u : 0u;
+    if (hidden) {
         atomicAdd(stats[StatsSlot], 1u);
         atomicAdd(stats[StatsSlot + 1u], commands[at] / 6u);
     }

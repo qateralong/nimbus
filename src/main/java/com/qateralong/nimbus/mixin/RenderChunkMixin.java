@@ -46,6 +46,15 @@ public abstract class RenderChunkMixin implements com.qateralong.nimbus.render.C
         return original.call(map);
     }
 
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "<init>", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/level/chunk/PalettedContainer;copy()Lnet/minecraft/world/level/chunk/PalettedContainer;"))
+    private PalettedContainer<?> nimbus$copy(PalettedContainer<?> states, com.llamalad7.mixinextras.injector.wrapoperation.Operation<PalettedContainer<?>> original) {
+        if (com.qateralong.nimbus.NimbusConfig.get().enabled && RenderSystem.isOnRenderThread()) {
+            return com.qateralong.nimbus.render.StateCopies.get(states, () -> original.call(states));
+        }
+        return original.call(states);
+    }
+
     @SuppressWarnings("unchecked")
     @Inject(method = "<init>", at = @At("RETURN"))
     private void nimbus$init(LevelChunk chunk, CallbackInfo ci) {

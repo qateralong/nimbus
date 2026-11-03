@@ -32,10 +32,25 @@ public abstract class CompileSectionsMixin {
     private static final int MIN_UPLOADS = 8;
 
     @org.spongepowered.asm.mixin.Unique
-    private static final boolean NIMBUS_BENCH = System.getProperty("nimbus.bench") != null;
+    private static final boolean NIMBUS_BENCH = (System.getProperty("nimbus.bench") != null && !"prod".equals(System.getProperty("nimbus.bench")));
 
     @org.spongepowered.asm.mixin.Unique
     private int nimbus$debugFrames;
+
+    @org.spongepowered.asm.mixin.Unique
+    private final List<SectionRenderDispatcher.RenderSection> nimbus$async = new ArrayList<>();
+
+    @org.spongepowered.asm.mixin.Unique
+    private long[] nimbus$picked = new long[256];
+
+    @org.spongepowered.asm.mixin.Unique
+    private int nimbus$workers;
+
+    @org.spongepowered.asm.mixin.Unique
+    private long nimbus$lastFrame;
+
+    @org.spongepowered.asm.mixin.Unique
+    private long nimbus$frameNanos;
 
     @Shadow
     @Final
@@ -63,7 +78,8 @@ public abstract class CompileSectionsMixin {
         RenderRegionCache cache = null;
         BlockPos cameraPos = camera.getBlockPosition();
         PrioritizeChunkUpdates priority = this.minecraft.options.prioritizeChunkUpdates().get();
-        List<SectionRenderDispatcher.RenderSection> async = new ArrayList<>();
+        List<SectionRenderDispatcher.RenderSection> async = this.nimbus$async;
+        async.clear();
         boolean forced = false;
         int frame = Nimbus.frames;
         boolean tracked = com.qateralong.nimbus.render.Visibility.valid && com.qateralong.nimbus.render.Visibility.allCount == this.visibleSections.size();
@@ -79,16 +95,24 @@ public abstract class CompileSectionsMixin {
             int[] order = com.qateralong.nimbus.render.SectionData.order;
             SectionRenderDispatcher.RenderSection[] byId = com.qateralong.nimbus.render.SectionData.sections;
             int stampNow = com.qateralong.nimbus.render.Visibility.stamp;
-            picked = new long[listed];
+            int[] prefetch = com.qateralong.nimbus.render.SectionData.prefetchFrame;
+            if (this.nimbus$picked.length < listed) {
+                this.nimbus$picked = new long[Math.max(listed, this.nimbus$picked.length * 2)];
+            }
+            picked = this.nimbus$picked;
             int found = 0;
             for (int i = 0; i < listed; i++) {
                 int id = listedIds[i];
                 SectionRenderDispatcher.RenderSection section = byId[id];
-                if (section == null || ((SectionStamp) section).nimbus$visibleFrame() != stampNow) {
+                if (section == null) {
+                    continue;
+                }
+                boolean shown = ((SectionStamp) section).nimbus$visibleFrame() == stampNow;
+                if (!shown && (id >= prefetch.length || prefetch[id] != stampNow)) {
                     continue;
                 }
                 int index = order[id];
-                if (index < count && sections[index] == section) {
+                if (shown ? index < count && sections[index] == section : (index & com.qateralong.nimbus.render.SectionData.PREFETCH) != 0) {
                     picked[found++] = (long) index << 32 | id;
                 }
             }
@@ -98,7 +122,7 @@ public abstract class CompileSectionsMixin {
         for (int i = 0; i < count; i++) {
             SectionRenderDispatcher.RenderSection section;
             if (picked != null) {
-                section = sections[(int) (picked[i] >>> 32)];
+                section = com.qateralong.nimbus.render.SectionData.sections[(int) picked[i]];
             } else {
                 if (tracked) {
                     int id = ids[i];
@@ -123,7 +147,8 @@ public abstract class CompileSectionsMixin {
             if (priority == PrioritizeChunkUpdates.NEARBY) {
                 BlockPos center = section.getOrigin().offset(8, 8, 8);
                 sync = center.distSqr(cameraPos) < 768.0 || section.isDirtyFromPlayer();
-            } else if (priority == PrioritizeChunkUpdates.PLAYER_AFFECTED) {
+            } else {
+                // player edits show up in the same frame whatever the vanilla priority option says
                 sync = section.isDirtyFromPlayer();
             }
             if (cache == null) {
@@ -139,7 +164,7 @@ public abstract class CompileSectionsMixin {
                 async.add(section);
             }
         }
-        if (++nimbus$debugFrames % 300 == 0 && System.getProperty("nimbus.bench") != null) {
+        if (++nimbus$debugFrames % 300 == 0 && NIMBUS_BENCH) {
             int vanillaDirty = 0;
             int ourDirty = 0;
             for (int i = 0; i < this.visibleSections.size(); i++) {
@@ -157,16 +182,40 @@ public abstract class CompileSectionsMixin {
         }
         profiler.popPush("upload");
         java.util.Queue<Runnable> uploads = ((com.qateralong.nimbus.render.UploadQueue) this.sectionRenderDispatcher).nimbus$uploads();
-        long deadline = System.nanoTime() + UPLOAD_BUDGET;
+        long now = System.nanoTime();
+        if (this.nimbus$lastFrame != 0L) {
+            long frameNanos = Math.min(100_000_000L, now - this.nimbus$lastFrame);
+            this.nimbus$frameNanos = this.nimbus$frameNanos == 0L ? frameNanos : (this.nimbus$frameNanos * 15 + frameNanos) / 16;
+        }
+        this.nimbus$lastFrame = now;
+        // a quarter of the average frame, so uploads keep pace at low FPS without eating high-FPS frames
+        long budget = this.nimbus$frameNanos == 0L ? UPLOAD_BUDGET : Math.max(1_000_000L, Math.min(4_000_000L, this.nimbus$frameNanos / 4));
+        long deadline = now + budget;
         int uploaded = 0;
         for (Runnable task; (forced || uploaded < MIN_UPLOADS || System.nanoTime() < deadline) && (task = uploads.poll()) != null; uploaded++) {
             task.run();
         }
         profiler.popPush("schedule_async_compile");
-        for (SectionRenderDispatcher.RenderSection section : async) {
-            section.rebuildSectionAsync(this.sectionRenderDispatcher, cache);
-            section.setNotDirty();
+        // Short queue re-picked every frame: vanilla snapshots blocks at scheduling time and sorts by stale distance.
+        int free = this.sectionRenderDispatcher.getFreeBufferCount();
+        if (free > this.nimbus$workers) {
+            this.nimbus$workers = free;
         }
+        int room = Math.max(4, this.nimbus$workers * 2) - this.sectionRenderDispatcher.getToBatchCount();
+        int scheduled = 0;
+        for (int pass = 0; pass < 2 && scheduled < room; pass++) {
+            for (int i = 0, size = async.size(); i < size && scheduled < room; i++) {
+                SectionRenderDispatcher.RenderSection section = async.get(i);
+                if (section == null || section.isDirtyFromPlayer() != (pass == 0)) {
+                    continue;
+                }
+                section.rebuildSectionAsync(this.sectionRenderDispatcher, cache);
+                section.setNotDirty();
+                async.set(i, null);
+                scheduled++;
+            }
+        }
+        async.clear();
         profiler.pop();
     }
 }

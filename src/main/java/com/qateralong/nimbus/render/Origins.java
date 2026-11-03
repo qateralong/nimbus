@@ -31,6 +31,7 @@ public final class Origins {
 
     public static synchronized void release(int id) {
         values[id * 4 + 3] = 0;
+        SectionData.layers(id, 0);
         FREE.add(id);
     }
 
@@ -38,6 +39,7 @@ public final class Origins {
         values[id * 4] = x;
         values[id * 4 + 1] = y;
         values[id * 4 + 2] = z;
+        SectionData.origin(id, x, y, z);
         moves++;
         SectionData.version++;
         DIRTY.set(id);
@@ -47,6 +49,11 @@ public final class Origins {
         if (id * 4 + 3 < values.length) {
             values[id * 4 + 3] = bits;
         }
+        SectionData.layers(id, bits);
+    }
+
+    static synchronized int idCount() {
+        return next;
     }
 
     public static int[] values() {

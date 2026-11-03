@@ -13,9 +13,6 @@ import net.minecraft.world.level.material.FluidState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(RenderChunkRegion.class)
 public abstract class RenderChunkRegionMixin implements BlockWindow {
@@ -43,13 +40,14 @@ public abstract class RenderChunkRegionMixin implements BlockWindow {
     @Unique
     private int[][] nimbus$tints;
 
+    @Unique
+    private com.qateralong.nimbus.render.BiomeBlend nimbus$blend;
+
     @Shadow
     private RenderChunk getChunk(int x, int z) {
         throw new AssertionError();
     }
 
-    @Shadow
-    public abstract BlockState getBlockState(BlockPos pos);
 
     @Shadow
     @org.spongepowered.asm.mixin.Final
@@ -63,7 +61,8 @@ public abstract class RenderChunkRegionMixin implements BlockWindow {
         if (containers == null) {
             return;
         }
-        BlockState[] states = new BlockState[NIMBUS_SIZE * NIMBUS_SIZE * NIMBUS_SIZE];
+        com.qateralong.nimbus.render.WindowPool pool = com.qateralong.nimbus.render.WindowPool.get();
+        BlockState[] states = pool.states;
         int index = section.y() - center.nimbus$minSection();
         PalettedContainer<BlockState> container = index >= 0 && index < containers.length ? containers[index] : null;
         if (container == null) {
@@ -75,7 +74,7 @@ public abstract class RenderChunkRegionMixin implements BlockWindow {
             }
         } else {
             PalettedContainer.Data<BlockState> data = container.data;
-            int[] ids = new int[4096];
+            int[] ids = pool.ids;
             data.storage().unpack(ids);
             net.minecraft.world.level.chunk.Palette<BlockState> palette = data.palette();
             for (int i = 0; i < 4096; i++) {
@@ -103,67 +102,81 @@ public abstract class RenderChunkRegionMixin implements BlockWindow {
         this.nimbus$y = minY;
         this.nimbus$z = minZ;
         this.nimbus$states = states;
-        this.nimbus$resolvers = new net.minecraft.world.level.ColorResolver[3];
-        this.nimbus$tints = new int[3][];
+        this.nimbus$resolvers = pool.resolvers;
+        this.nimbus$tints = pool.tints;
+        this.nimbus$blend = com.qateralong.nimbus.NimbusConfig.get().fastBiomeBlend
+                ? new com.qateralong.nimbus.render.BiomeBlend(this.level, minX, minY, minZ, NIMBUS_SIZE) : null;
     }
 
-    @Inject(method = "getBlockTint", at = @At("HEAD"), cancellable = true)
-    private void nimbus$tint(BlockPos pos, net.minecraft.world.level.ColorResolver resolver, CallbackInfoReturnable<Integer> cir) {
+    /**
+     * @author qateralong
+     * @reason per-region tint cache with blended biome colours, without a callback allocation per call
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    public int getBlockTint(BlockPos pos, net.minecraft.world.level.ColorResolver resolver) {
+        int cached = this.nimbus$tint(pos, resolver);
+        return cached >= 0 ? cached : this.level.getBlockTint(pos, resolver);
+    }
+
+    @Unique
+    private int nimbus$tint(BlockPos pos, net.minecraft.world.level.ColorResolver resolver) {
         net.minecraft.world.level.ColorResolver[] resolvers = this.nimbus$resolvers;
         if (resolvers == null) {
-            return;
+            return -1;
         }
         int x = pos.getX() - this.nimbus$x;
         int y = pos.getY() - this.nimbus$y;
         int z = pos.getZ() - this.nimbus$z;
         if ((x | y | z) < 0 || x >= NIMBUS_SIZE || y >= NIMBUS_SIZE || z >= NIMBUS_SIZE) {
-            return;
+            return -1;
         }
         int slot = 0;
         while (slot < resolvers.length && resolvers[slot] != null && resolvers[slot] != resolver) {
             slot++;
         }
         if (slot == resolvers.length) {
-            return;
+            return -1;
         }
         int[] tints = this.nimbus$tints[slot];
         if (resolvers[slot] == null) {
             resolvers[slot] = resolver;
-            tints = new int[NIMBUS_SIZE * NIMBUS_SIZE * NIMBUS_SIZE];
-            this.nimbus$tints[slot] = tints;
+            java.util.Arrays.fill(tints, 0);
         }
         int index = (y * NIMBUS_SIZE + z) * NIMBUS_SIZE + x;
         int color = tints[index];
         if (color == 0) {
-            color = this.level.getBlockTint(pos, resolver) | 0xFF000000;
+            com.qateralong.nimbus.render.BiomeBlend blend = this.nimbus$blend;
+            int blended = blend != null ? blend.color(resolver, x, y, z) : -1;
+            color = (blended >= 0 ? blended : this.level.getBlockTint(pos, resolver)) | 0xFF000000;
             tints[index] = color;
         }
-        cir.setReturnValue(color & 0xFFFFFF);
+        return color & 0xFFFFFF;
     }
 
-    @Inject(method = "getBlockState", at = @At("HEAD"), cancellable = true)
-    private void nimbus$window(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
+    /**
+     * @author qateralong
+     * @reason allocation-free lookup in the prepared 18x18x18 window on the meshing hot path
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    public BlockState getBlockState(BlockPos pos) {
         BlockState[] states = this.nimbus$states;
         if (states != null) {
             int x = pos.getX() - this.nimbus$x;
             int y = pos.getY() - this.nimbus$y;
             int z = pos.getZ() - this.nimbus$z;
             if ((x | y | z) >= 0 && x < NIMBUS_SIZE && y < NIMBUS_SIZE && z < NIMBUS_SIZE) {
-                cir.setReturnValue(states[(y * NIMBUS_SIZE + z) * NIMBUS_SIZE + x]);
+                return states[(y * NIMBUS_SIZE + z) * NIMBUS_SIZE + x];
             }
         }
+        return this.getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())).getBlockState(pos);
     }
 
-    @Inject(method = "getFluidState", at = @At("HEAD"), cancellable = true)
-    private void nimbus$fluid(BlockPos pos, CallbackInfoReturnable<FluidState> cir) {
-        BlockState[] states = this.nimbus$states;
-        if (states != null) {
-            int x = pos.getX() - this.nimbus$x;
-            int y = pos.getY() - this.nimbus$y;
-            int z = pos.getZ() - this.nimbus$z;
-            if ((x | y | z) >= 0 && x < NIMBUS_SIZE && y < NIMBUS_SIZE && z < NIMBUS_SIZE) {
-                cir.setReturnValue(states[(y * NIMBUS_SIZE + z) * NIMBUS_SIZE + x].getFluidState());
-            }
-        }
+    /**
+     * @author qateralong
+     * @reason same window lookup as getBlockState, without a callback allocation per call
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    public FluidState getFluidState(BlockPos pos) {
+        return this.getBlockState(pos).getFluidState();
     }
 }

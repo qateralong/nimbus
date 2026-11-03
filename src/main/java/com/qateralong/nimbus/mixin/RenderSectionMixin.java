@@ -18,8 +18,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(SectionRenderDispatcher.RenderSection.class)
 public abstract class RenderSectionMixin implements SectionStamp {
-    @Unique
-    private int nimbus$visibleFrame = -1;
 
     @Unique
     private int nimbus$lightRetry;
@@ -53,6 +51,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
     private void nimbus$releaseId(CallbackInfo ci) {
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, false);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, false);
+        com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, null);
         com.qateralong.nimbus.render.SectionData.register(this.nimbus$id, null);
         com.qateralong.nimbus.render.Origins.release(this.nimbus$id);
     }
@@ -84,6 +83,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
     @Inject(method = "setCompiled", at = @At("RETURN"))
     private void nimbus$compiled(SectionRenderDispatcher.CompiledSection compiled, CallbackInfo ci) {
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, !compiled.getRenderableBlockEntities().isEmpty());
+        com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, compiled);
         Terrain.compiled(this, compiled);
     }
 
@@ -91,6 +91,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
     private void nimbus$reset(CallbackInfo ci) {
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, false);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
+        com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, null);
         Terrain.compiled(this, SectionRenderDispatcher.CompiledSection.UNCOMPILED);
     }
 
@@ -106,12 +107,13 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Override
     public int nimbus$visibleFrame() {
-        return this.nimbus$visibleFrame;
+        int[] frames = com.qateralong.nimbus.render.SectionData.visibleFrame;
+        return this.nimbus$id < frames.length ? frames[this.nimbus$id] : 0;
     }
 
     @Override
     public void nimbus$setVisibleFrame(int frame) {
-        this.nimbus$visibleFrame = frame;
+        com.qateralong.nimbus.render.SectionData.visibleFrame[this.nimbus$id] = frame;
     }
 
     @Override

@@ -46,7 +46,7 @@ final class Packer {
         long source = MemoryUtil.memAddress(mesh.vertexBuffer());
         int[] groups = new int[quads];
         int[] counts = new int[Faces.GROUPS];
-        float[] planes = {Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE};
+        float[] planes = {-Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE};
         float[] x = new float[4];
         float[] y = new float[4];
         float[] z = new float[4];

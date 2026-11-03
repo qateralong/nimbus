@@ -124,10 +124,37 @@ public final class AnimatedSprites {
         return -1;
     }
 
+    private record SpriteSet(long[] bits) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof SpriteSet set && java.util.Arrays.equals(this.bits, set.bits);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Arrays.hashCode(this.bits);
+        }
+    }
+
+    // sections share a handful of distinct sets (water, lava, fire...), so equal sets become one array
+    private static final java.util.concurrent.ConcurrentHashMap<SpriteSet, int[]> SETS = new java.util.concurrent.ConcurrentHashMap<>();
+
     static int[] indices(long[] bits) {
         if (bits == null) {
             return null;
         }
+        int last = bits.length;
+        while (last > 0 && bits[last - 1] == 0L) {
+            last--;
+        }
+        long[] key = java.util.Arrays.copyOf(bits, last);
+        if (SETS.size() > 4096) {
+            SETS.clear();
+        }
+        return SETS.computeIfAbsent(new SpriteSet(key), set -> unpack(set.bits()));
+    }
+
+    private static int[] unpack(long[] bits) {
         int total = 0;
         for (long word : bits) {
             total += Long.bitCount(word);
@@ -142,6 +169,63 @@ public final class AnimatedSprites {
             }
         }
         return result;
+    }
+
+    private record IndexSet(int[] indices) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof IndexSet set && java.util.Arrays.equals(this.indices, set.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Arrays.hashCode(this.indices);
+        }
+    }
+
+    static final int NO_SET = 0xFFFF;
+    private static final java.util.HashMap<IndexSet, Integer> SET_IDS = new java.util.HashMap<>();
+    private static int[][] setsById = new int[64][];
+
+    // Main thread: a small number per distinct sprite set, so draw-list building can dedupe with one compare.
+    static int setId(int[] indices) {
+        Integer known = SET_IDS.get(new IndexSet(indices));
+        if (known != null) {
+            return known;
+        }
+        int id = SET_IDS.size();
+        if (id >= NO_SET) {
+            return NO_SET;
+        }
+        if (id == setsById.length) {
+            setsById = java.util.Arrays.copyOf(setsById, id * 2);
+        }
+        setsById[id] = indices;
+        SET_IDS.put(new IndexSet(indices), id);
+        return id;
+    }
+
+    static int[] set(int id) {
+        return setsById[id];
+    }
+
+    static int setCount() {
+        return SET_IDS.size();
+    }
+
+    static void markBits(long[] bits) {
+        int[] states = active;
+        int tick = Nimbus.ticks;
+        for (int word = 0; word < bits.length; word++) {
+            long value = bits[word];
+            while (value != 0) {
+                int index = word * 64 + Long.numberOfTrailingZeros(value);
+                value &= value - 1;
+                if (index < states.length) {
+                    states[index] = tick;
+                }
+            }
+        }
     }
 
     static void mark(int[] indices) {

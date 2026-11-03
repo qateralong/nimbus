@@ -19,7 +19,7 @@ final class TerrainProgram {
     final int cameraFrac;
 
     TerrainProgram(boolean cutout) throws IOException {
-        int vertex = compile(GL20.GL_VERTEX_SHADER, source("terrain.vsh"));
+        int vertex = compile(GL20.GL_VERTEX_SHADER, source("terrain.vsh").replace("//PAGES", Arena.shaderPages(Arena.maxPages)));
         String fsh = source("terrain.fsh");
         if (cutout) {
             int line = fsh.indexOf('\n') + 1;

@@ -35,18 +35,19 @@ public abstract class SectionCompilerMixin {
         }
     }
 
-    @Inject(method = "getOrBeginLayer", at = @At("HEAD"), cancellable = true)
-    private void nimbus$packed(Map<RenderType, BufferBuilder> builders, SectionBufferBuilderPack pack, RenderType layer, CallbackInfoReturnable<BufferBuilder> cir) {
-        BufferBuilder existing = builders.get(layer);
-        if (existing != null) {
-            cir.setReturnValue(existing);
-            return;
-        }
-        if (Terrain.meshing()) {
-            BufferBuilder builder = new PackedBuilder(pack.buffer(layer), layer == RenderType.translucent());
+    /**
+     * @author qateralong
+     * @reason called for every block while meshing; packed builders when our mesher is on, no callback allocation
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    private BufferBuilder getOrBeginLayer(Map<RenderType, BufferBuilder> builders, SectionBufferBuilderPack pack, RenderType layer) {
+        BufferBuilder builder = builders.get(layer);
+        if (builder == null) {
+            builder = Terrain.meshing() ? new PackedBuilder(pack.buffer(layer), layer == RenderType.translucent())
+                    : new BufferBuilder(pack.buffer(layer), com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.BLOCK);
             builders.put(layer, builder);
-            cir.setReturnValue(builder);
         }
+        return builder;
     }
 
     @WrapOperation(method = "compile", at = @At(value = "INVOKE",

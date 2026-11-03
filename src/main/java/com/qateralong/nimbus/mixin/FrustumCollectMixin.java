@@ -55,8 +55,16 @@ public abstract class FrustumCollectMixin {
     @Unique
     private final Long2IntOpenHashMap nimbus$columnIndex = new Long2IntOpenHashMap();
 
+    @Shadow
+    private net.minecraft.client.renderer.ViewArea viewArea;
+
     @Inject(method = "addSectionsInFrustum", at = @At("HEAD"), cancellable = true)
     private void nimbus$collect(Frustum frustum, List<SectionRenderDispatcher.RenderSection> output, CallbackInfo ci) {
+        if (com.qateralong.nimbus.render.Traversal.enabled() && this.viewArea != null) {
+            com.qateralong.nimbus.render.Traversal.collect(this.viewArea, frustum, output);
+            ci.cancel();
+            return;
+        }
         SectionOcclusionGraph.GraphStorage storage = this.currentGraph.get().storage();
         LinkedHashSet<SectionOcclusionGraph.Node> nodes = storage.renderSections;
         int size = nodes.size();

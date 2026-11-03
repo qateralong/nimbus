@@ -56,7 +56,11 @@ public final class NimbusConfig {
     public boolean guiBatching = true;
     public boolean sodiumGraphCache = true;
     public boolean biomeCache = true;
+    public boolean fastBiomeBlend = true;
+    public boolean fastClouds = true;
+    public boolean ownTranslucentSort = true;
     public boolean terrainRenderer = false;
+    public boolean ownTraversal = true;
     public boolean nimbusMesher = true;
     public boolean gpuOcclusion = false;
     public boolean sectionLightCache = true;

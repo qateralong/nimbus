@@ -19,6 +19,7 @@ public final class Visibility {
     }
 
     public static void begin() {
+        SectionData.clearPending();
         stamp++;
         changes++;
         membership = SectionData.membership;
@@ -30,9 +31,11 @@ public final class Visibility {
     }
 
     public static void add(SectionRenderDispatcher.RenderSection section) {
-        SectionStamp data = (SectionStamp) section;
-        data.nimbus$setVisibleFrame(stamp);
-        int id = data.nimbus$id();
+        add(section, ((SectionStamp) section).nimbus$id());
+    }
+
+    public static void add(SectionRenderDispatcher.RenderSection section, int id) {
+        SectionData.visibleFrame[id] = stamp;
         if (allCount == allIds.length) {
             allIds = java.util.Arrays.copyOf(allIds, allIds.length * 2);
             allSections = java.util.Arrays.copyOf(allSections, allSections.length * 2);
@@ -81,6 +84,7 @@ public final class Visibility {
             return;
         }
         membership = current;
+        SectionData.clearPending();
         changes++;
         count = 0;
         WITH_BLOCK_ENTITIES.clear();
@@ -98,6 +102,16 @@ public final class Visibility {
             if (SectionData.blockEntities[id]) {
                 WITH_BLOCK_ENTITIES.add(allSections[i]);
             }
+        }
+    }
+
+    static void append(int id) {
+        if (count == ids.length) {
+            ids = java.util.Arrays.copyOf(ids, ids.length * 2);
+        }
+        ids[count++] = id;
+        if (SectionData.blockEntities[id] && SectionData.sections[id] != null) {
+            WITH_BLOCK_ENTITIES.add(SectionData.sections[id]);
         }
     }
 

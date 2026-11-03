@@ -1,8 +1,6 @@
 #version 460 core
 
-layout(std430, binding = 0) readonly buffer Vertices {
-    uvec4 vertices[];
-};
+//PAGES
 
 layout(location = 0) in ivec3 Origin;
 
@@ -17,7 +15,7 @@ out vec4 vertexColor;
 out vec2 texCoord0;
 
 void main() {
-    uvec4 v = vertices[gl_VertexID];
+    uvec4 v = fetchVertex(gl_VertexID);
     vec3 local = vec3(float(v.x & 0xFFFFu), float(v.x >> 16u), float(v.y & 0xFFFFu)) * (1.0 / 1024.0) - 16.0;
     vec3 pos = local + vec3(Origin - CameraBlock) - CameraFrac;
     gl_Position = MvpMat * vec4(pos, 1.0);

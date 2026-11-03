@@ -69,6 +69,10 @@ public final class NimbusPages {
                     .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer);
             toggle(engine, "gpu_occlusion", c -> c.gpuOcclusion, (c, v) -> c.gpuOcclusion = v)
                     .visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
+            toggle(engine, "own_traversal", c -> c.ownTraversal, (c, v) -> c.ownTraversal = v)
+                    .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
+            toggle(engine, "own_translucent_sort", c -> c.ownTranslucentSort, (c, v) -> c.ownTranslucentSort = v)
+                    .visible(() -> config().terrainRenderer);
         }
         OptionGroup display = group(general, "display");
         vanilla(display, "render_distance", o.renderDistance()).impact(OptionImpact.HIGH);
@@ -220,6 +224,8 @@ public final class NimbusPages {
             toggle(optimizations, "sodium_graph_cache", c -> c.sodiumGraphCache, (c, v) -> c.sodiumGraphCache = v);
         }
         toggle(optimizations, "biome_cache", c -> c.biomeCache, (c, v) -> c.biomeCache = v);
+        toggle(optimizations, "fast_biome_blend", c -> c.fastBiomeBlend, (c, v) -> c.fastBiomeBlend = v);
+        toggle(optimizations, "fast_clouds", c -> c.fastClouds, (c, v) -> c.fastClouds = v);
         toggle(optimizations, "entity_light_cache", c -> c.entityLightCache, (c, v) -> c.entityLightCache = v);
         toggle(optimizations, "entity_grouping", c -> c.entityGrouping, (c, v) -> c.entityGrouping = v);
         toggle(optimizations, "entity_batching", c -> c.entityBatching, (c, v) -> c.entityBatching = v);

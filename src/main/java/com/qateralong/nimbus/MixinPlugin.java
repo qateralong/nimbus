@@ -57,9 +57,10 @@ public class MixinPlugin implements IMixinConfigPlugin {
         }
         if (mixinClassName.endsWith(".LevelRendererTerrainMixin") || mixinClassName.endsWith(".SectionDispatcherMixin")
                 || mixinClassName.endsWith(".TerrainBufferMixin") || mixinClassName.endsWith(".CompileSectionsMixin")
-                || mixinClassName.endsWith(".FrustumCollectMixin") || mixinClassName.endsWith(".BlockEntityLoopMixin")
+                || mixinClassName.endsWith(".FrustumCollectMixin") || mixinClassName.endsWith(".TraversalGraphMixin") || mixinClassName.endsWith(".BlockEntityLoopMixin")
                 || mixinClassName.endsWith(".ModelCubeMixin") || mixinClassName.endsWith(".SectionCompilerMixin")
-                || mixinClassName.endsWith(".HiddenBlockMixin") || mixinClassName.endsWith(".LightCacheMixin")) {
+                || mixinClassName.endsWith(".HiddenBlockMixin") || mixinClassName.endsWith(".LightCacheMixin")
+                || mixinClassName.endsWith(".CloudColorMixin")) {
             return !FabricLoader.getInstance().isModLoaded("sodium");
         }
         if (mixinClassName.endsWith(".GuiGraphicsBatchMixin") || mixinClassName.endsWith(".BatchFlushMixin") || mixinClassName.endsWith(".BatchStateMixin")

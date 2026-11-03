@@ -1,26 +1,36 @@
 package com.qateralong.nimbus.mixin;
 
 import com.qateralong.nimbus.Leaves;
+import com.qateralong.nimbus.render.FaceOcclusion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.Overwrite;
 
 @Mixin(Block.class)
 public abstract class BlockFaceMixin {
-    @Inject(method = "shouldRenderFace", at = @At("HEAD"), cancellable = true)
-    private static void nimbus$leaves(BlockState state, BlockGetter level, BlockPos pos, Direction face, BlockPos neighbour, CallbackInfoReturnable<Boolean> cir) {
-        if (Leaves.hide(state, level, neighbour, face)) {
-            cir.setReturnValue(false);
-            return;
+    /**
+     * @author qateralong
+     * @reason called for every face of every block while meshing: no callback object, no cache key object
+     */
+    @Overwrite
+    public static boolean shouldRenderFace(BlockState state, BlockGetter level, BlockPos pos, Direction face, BlockPos neighbourPos) {
+        if (Leaves.hide(state, level, neighbourPos, face)) {
+            return false;
         }
-        if (state.isSolidRender(level, pos) && level.getBlockState(neighbour).isSolidRender(level, neighbour)) {
-            cir.setReturnValue(false);
+        BlockState neighbour = level.getBlockState(neighbourPos);
+        if (state.isSolidRender(level, pos) && neighbour.isSolidRender(level, neighbourPos)) {
+            return false;
         }
+        if (state.skipRendering(neighbour, face)) {
+            return false;
+        }
+        if (!neighbour.canOcclude()) {
+            return true;
+        }
+        return FaceOcclusion.visible(state, neighbour, level, pos, neighbourPos, face);
     }
 }
