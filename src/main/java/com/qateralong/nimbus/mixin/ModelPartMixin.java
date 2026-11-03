@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 // Same traversal as vanilla, with indexed loops instead of an iterator over children and cubes for every part drawn.
-@Mixin(ModelPart.class)
+@Mixin(value = ModelPart.class, priority = 900)
 public abstract class ModelPartMixin {
     @Unique
     private static final ModelPart[] NIMBUS_NONE = new ModelPart[0];

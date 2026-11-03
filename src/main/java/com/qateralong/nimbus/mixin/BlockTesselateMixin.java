@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 // Same work as vanilla, but the per-block and per-quad scratch objects come from the calling thread instead of the heap.
-@Mixin(ModelBlockRenderer.class)
+@Mixin(value = ModelBlockRenderer.class, priority = 900)
 public abstract class BlockTesselateMixin {
     @Unique
     private static final Direction[] NIMBUS_DIRECTIONS = Direction.values();

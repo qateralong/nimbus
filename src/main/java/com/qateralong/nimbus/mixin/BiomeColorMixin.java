@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 // The base grass and foliage colours only change with the colormap textures; vanilla boxes them on every lookup.
-@Mixin(Biome.class)
+@Mixin(value = Biome.class, priority = 900)
 public abstract class BiomeColorMixin {
     @Shadow
     @Final

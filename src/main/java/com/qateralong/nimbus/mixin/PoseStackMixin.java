@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 // Every model part pushes a pose; vanilla allocates a Matrix4f and a Matrix3f each time. Popped poses are kept per stack.
-@Mixin(PoseStack.class)
+@Mixin(value = PoseStack.class, priority = 900)
 public abstract class PoseStackMixin {
     @Shadow
     @Final

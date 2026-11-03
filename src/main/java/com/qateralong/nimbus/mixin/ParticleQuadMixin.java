@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 // Billboard quads written straight into the particle buffer: one reserve per quad instead of four chained vertex calls.
-@Mixin(SingleQuadParticle.class)
+@Mixin(value = SingleQuadParticle.class, priority = 900)
 public abstract class ParticleQuadMixin extends Particle {
     @Unique
     private static final boolean NIMBUS_LITTLE_ENDIAN = java.nio.ByteOrder.nativeOrder() == java.nio.ByteOrder.LITTLE_ENDIAN;
