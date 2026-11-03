@@ -18,6 +18,7 @@ public final class GuiBatch {
     private static final int COLORED = 2;
     private static final ByteBufferBuilder MEMORY = new ByteBufferBuilder(1 << 16);
     private static int depth;
+    private static int drawing;
     private static boolean internal;
     private static boolean blend;
     private static int kind;
@@ -82,6 +83,7 @@ public final class GuiBatch {
     }
 
     public static void endFrame() {
+        drawing = 0;
         flushText();
         if (depth > 0) {
             flush();
@@ -136,8 +138,21 @@ public final class GuiBatch {
         }
     }
 
+    public static void drawStart() {
+        if (drawing++ == 0 && !internal) {
+            flushText();
+            flush();
+        }
+    }
+
+    public static void drawEnd() {
+        if (drawing > 0) {
+            drawing--;
+        }
+    }
+
     public static void blendChanged(boolean enabled) {
-        if (internal) {
+        if (internal || drawing > 0) {
             blend = enabled;
             return;
         }
@@ -149,7 +164,7 @@ public final class GuiBatch {
     }
 
     public static void stateChanged() {
-        if (internal) {
+        if (internal || drawing > 0) {
             return;
         }
         flushText();

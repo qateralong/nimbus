@@ -39,6 +39,7 @@ import org.lwjgl.system.MemoryUtil;
 public final class Terrain {
     private static final boolean SODIUM = FabricLoader.getInstance().isModLoaded("sodium");
     private static volatile boolean ready;
+    private static volatile boolean live;
     private static boolean failed;
     private static TerrainProgram program;
     private static TerrainProgram cutoutProgram;
@@ -90,13 +91,19 @@ public final class Terrain {
         return !SODIUM;
     }
 
+    // Latched: section buffers built for one renderer are unusable by the other, so the switch only happens on a full reload
     public static boolean active() {
-        return ready && NimbusConfig.get().enabled && NimbusConfig.get().terrainRenderer;
+        return live;
+    }
+
+    public static void sync() {
+        live = ready && NimbusConfig.get().enabled && NimbusConfig.get().terrainRenderer;
     }
 
     public static void init() {
         if (SODIUM || failed || program != null) {
             ready = program != null;
+            sync();
             return;
         }
         if (!NimbusConfig.get().terrainRenderer) {
@@ -132,6 +139,7 @@ public final class Terrain {
             MemoryUtil.memFree(pattern);
             GlStateManager._glBindVertexArray(0);
             ready = true;
+            sync();
             Nimbus.LOGGER.info("Nimbus terrain renderer ready");
         } catch (Throwable t) {
             failed = true;

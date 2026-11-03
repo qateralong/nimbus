@@ -75,6 +75,7 @@ public class Nimbus implements ClientModInitializer {
                 NimbusConfig config = NimbusConfig.get();
                 config.enabled = !config.enabled;
                 config.save();
+                com.qateralong.nimbus.render.Terrain.toggled();
                 if (client.player != null) {
                     client.player.displayClientMessage(Component.translatable(config.enabled ? "nimbus.on" : "nimbus.off"), true);
                 }

@@ -52,7 +52,7 @@ public final class NimbusPages {
                 })
                 .formatter(name -> Component.translatable("nimbus.preset." + name))
                 .instant());
-        toggle(engine, "enabled", c -> c.enabled, (c, v) -> c.enabled = v);
+        toggle(engine, "enabled", c -> c.enabled, (c, v) -> c.enabled = v).afterApply(Terrain::toggled);
         if (Terrain.supported()) {
             engine.add(Option.<Integer>cycle("nimbus:render_engine")
                     .name(label("render_engine"))

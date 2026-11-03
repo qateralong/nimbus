@@ -65,7 +65,7 @@ public class MixinPlugin implements IMixinConfigPlugin {
         }
         if (mixinClassName.endsWith(".GuiGraphicsBatchMixin") || mixinClassName.endsWith(".BatchFlushMixin") || mixinClassName.endsWith(".BatchStateMixin")
                 || mixinClassName.endsWith(".BatchRenderSystemMixin") || mixinClassName.endsWith(".ScreenBatchMixin")
-                || mixinClassName.endsWith(".GuiTextBatchMixin")) {
+                || mixinClassName.endsWith(".GuiTextBatchMixin") || mixinClassName.endsWith(".BatchDrawMixin")) {
             return !FabricLoader.getInstance().isModLoaded("immediatelyfast");
         }
         if (mixinClassName.endsWith(".VertexBufferMixin") || mixinClassName.endsWith(".VertexFormatMixin")) {

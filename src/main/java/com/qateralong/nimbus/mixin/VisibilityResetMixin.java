@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class VisibilityResetMixin {
     @Inject(method = "allChanged", at = @At("HEAD"))
     private void nimbus$allChanged(CallbackInfo ci) {
+        com.qateralong.nimbus.render.Terrain.sync();
         Visibility.invalidate();
     }
 
