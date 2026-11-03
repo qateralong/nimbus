@@ -59,7 +59,7 @@ public final class NimbusConfig {
     public boolean fastBiomeBlend = true;
     public boolean fastClouds = true;
     public boolean ownTranslucentSort = true;
-    public boolean terrainRenderer = false;
+    public boolean terrainRenderer = true;
     public boolean ownTraversal = true;
     public boolean nimbusMesher = true;
     public boolean gpuOcclusion = false;
@@ -112,6 +112,7 @@ public final class NimbusConfig {
     public List<String> disabledParticles = new ArrayList<>();
     public List<String> disabledAnimations = new ArrayList<>();
     public boolean debugLine = true;
+    public int configVersion = 0;
 
     public static NimbusConfig get() {
         if (instance == null) {
@@ -128,10 +129,21 @@ public final class NimbusConfig {
             } catch (Exception e) {
                 Nimbus.LOGGER.warn("Failed to read nimbus.json", e);
             }
+            instance.migrate();
             instance.save();
             Cull.reload();
         }
         return instance;
+    }
+
+    private static final int CONFIG_VERSION = 2;
+
+    // 2: own terrain engine on by default (it falls back to vanilla on its own when unsupported or Sodium is present)
+    private void migrate() {
+        if (this.configVersion < 2) {
+            this.terrainRenderer = true;
+        }
+        this.configVersion = CONFIG_VERSION;
     }
 
     public void save() {

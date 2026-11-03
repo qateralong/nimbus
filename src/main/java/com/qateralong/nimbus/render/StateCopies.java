@@ -1,6 +1,5 @@
 package com.qateralong.nimbus.render;
 
-import java.util.function.Supplier;
 import net.minecraft.world.level.chunk.PalettedContainer;
 
 // Vanilla copies every non-empty section of a chunk each time a render region needs it. The copy is read-only,
@@ -24,15 +23,15 @@ public final class StateCopies {
     }
 
     // Render thread only, like every client-side block change.
-    public static PalettedContainer<?> get(PalettedContainer<?> states, Supplier<PalettedContainer<?>> copier) {
+    public static PalettedContainer<?> cached(PalettedContainer<?> states) {
         Source source = (Source) states;
         PalettedContainer<?> kept = source.nimbus$copy();
-        int stamp = source.nimbus$stamp();
-        if (kept != null && source.nimbus$copyStamp() == stamp) {
-            return kept;
-        }
-        PalettedContainer<?> copy = copier.get();
-        if (kept == null) {
+        return kept != null && source.nimbus$copyStamp() == source.nimbus$stamp() ? kept : null;
+    }
+
+    public static PalettedContainer<?> keep(PalettedContainer<?> states, PalettedContainer<?> copy) {
+        Source source = (Source) states;
+        if (source.nimbus$copy() == null) {
             Source old = RING[next];
             if (old != null) {
                 old.nimbus$keep(null, 0);
@@ -40,7 +39,7 @@ public final class StateCopies {
             RING[next] = source;
             next = (next + 1) % LIMIT;
         }
-        source.nimbus$keep(copy, stamp);
+        source.nimbus$keep(copy, source.nimbus$stamp());
         return copy;
     }
 }

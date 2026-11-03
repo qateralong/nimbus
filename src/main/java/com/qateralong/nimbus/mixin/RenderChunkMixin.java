@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(targets = "net.minecraft.client.renderer.chunk.RenderChunk")
 public abstract class RenderChunkMixin implements com.qateralong.nimbus.render.ChunkSections {
@@ -50,7 +49,8 @@ public abstract class RenderChunkMixin implements com.qateralong.nimbus.render.C
             target = "Lnet/minecraft/world/level/chunk/PalettedContainer;copy()Lnet/minecraft/world/level/chunk/PalettedContainer;"))
     private PalettedContainer<?> nimbus$copy(PalettedContainer<?> states, com.llamalad7.mixinextras.injector.wrapoperation.Operation<PalettedContainer<?>> original) {
         if (com.qateralong.nimbus.NimbusConfig.get().enabled && RenderSystem.isOnRenderThread()) {
-            return com.qateralong.nimbus.render.StateCopies.get(states, () -> original.call(states));
+            PalettedContainer<?> kept = com.qateralong.nimbus.render.StateCopies.cached(states);
+            return kept != null ? kept : com.qateralong.nimbus.render.StateCopies.keep(states, original.call(states));
         }
         return original.call(states);
     }
@@ -64,20 +64,45 @@ public abstract class RenderChunkMixin implements com.qateralong.nimbus.render.C
         }
     }
 
-    @Inject(method = "getBlockState", at = @At("HEAD"), cancellable = true)
-    private void nimbus$fast(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
-        PalettedContainer<BlockState>[] array = this.nimbus$sections;
-        if (array == null) {
-            return;
-        }
+    @Shadow
+    @Final
+    private LevelChunk wrapped;
+
+    /**
+     * @author qateralong
+     * @reason called for every block of every compile window; a cancellable inject allocated a callback per call
+     */
+    @org.spongepowered.asm.mixin.Overwrite
+    public BlockState getBlockState(BlockPos pos) {
         int y = pos.getY();
-        int index = (y >> 4) - this.nimbus$minSection;
-        if (index < 0 || index >= array.length) {
-            cir.setReturnValue(NIMBUS_AIR);
-            return;
+        PalettedContainer<BlockState>[] array = this.nimbus$sections;
+        if (array != null) {
+            int index = (y >> 4) - this.nimbus$minSection;
+            if (index < 0 || index >= array.length) {
+                return NIMBUS_AIR;
+            }
+            PalettedContainer<BlockState> section = array[index];
+            return section == null ? NIMBUS_AIR : section.get(pos.getX() & 15, y & 15, pos.getZ() & 15);
         }
-        PalettedContainer<BlockState> section = array[index];
-        cir.setReturnValue(section == null ? NIMBUS_AIR : section.get(pos.getX() & 15, y & 15, pos.getZ() & 15));
+        if (this.debug) {
+            BlockState state = null;
+            if (y == 60) {
+                state = Blocks.BARRIER.defaultBlockState();
+            }
+            if (y == 70) {
+                state = net.minecraft.world.level.levelgen.DebugLevelSource.getBlockStateFor(pos.getX(), pos.getZ());
+            }
+            return state == null ? NIMBUS_AIR : state;
+        }
+        if (this.sections == null) {
+            return NIMBUS_AIR;
+        }
+        int index = this.wrapped.getSectionIndex(y);
+        if (index < 0 || index >= this.sections.size()) {
+            return NIMBUS_AIR;
+        }
+        PalettedContainer<BlockState> section = this.sections.get(index);
+        return section == null ? NIMBUS_AIR : section.get(pos.getX() & 15, y & 15, pos.getZ() & 15);
     }
 
     @Override

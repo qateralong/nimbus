@@ -105,7 +105,7 @@ public abstract class RenderChunkRegionMixin implements BlockWindow {
         this.nimbus$resolvers = pool.resolvers;
         this.nimbus$tints = pool.tints;
         this.nimbus$blend = com.qateralong.nimbus.NimbusConfig.get().fastBiomeBlend
-                ? new com.qateralong.nimbus.render.BiomeBlend(this.level, minX, minY, minZ, NIMBUS_SIZE) : null;
+                ? com.qateralong.nimbus.render.BiomeBlend.get(this.level, minX, minY, minZ, NIMBUS_SIZE) : null;
     }
 
     /**

@@ -169,10 +169,19 @@ public final class Traversal {
         int moves = Origins.moves;
 
         rays(matrix);
-        boolean valid = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz
-                && moves == keyMoves && chunks == keyChunks && (changed == keyChanged || framesCached < LAZY_FRAMES) && distance == keyDistance && cull == keyCull
+        boolean steady = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz
+                && moves == keyMoves && (changed == keyChanged || framesCached < LAZY_FRAMES) && distance == keyDistance && cull == keyCull
                 && contains(wide, MARGIN, frustum.camX - originX, frustum.camY - originY, frustum.camZ - originZ);
+        boolean valid = steady && chunks == keyChunks;
         boolean grew = false;
+        if (steady && chunks != keyChunks) {
+            int before = cachedCount;
+            loadChunks(source, chunks, distance, camSx, camSz, sizeY, sizeX, minSection);
+            extend(ids, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+            keyChunks = chunks;
+            valid = true;
+            grew = cachedCount != before;
+        }
         if (valid && graph != keyGraph) {
             int before = cachedCount;
             extend(ids, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
@@ -552,6 +561,68 @@ public final class Traversal {
         }
         return tail;
     }
+
+    // Chunks arrived or left without the camera changing section: columns whose four side chunks are now all loaded
+    // drop their rejections, and found sections next to them are expanded again. Lost chunks only leave extra sections.
+    private static void loadChunks(Object chunkSource, int chunks, int distance, int camSx, int camSz, int sizeY, int sizeX, int minSection) {
+        var source = (net.minecraft.client.multiplayer.ClientChunkCache) chunkSource;
+        int size = side;
+        int base = distance + 1;
+        boolean[] wasLoaded = loaded;
+        boolean[] hadNeighbors = neighbors;
+        for (int lz = 0; lz < size; lz++) {
+            for (int lx = 0; lx < size; lx++) {
+                wasLoaded[lz * size + lx] = source != null && source.hasChunk(camSx + lx - base, camSz + lz - base);
+            }
+        }
+        loadedChunks = chunks;
+        int[] st = state;
+        int mark = frame << FRAME_SHIFT;
+        int[] wx = wrapX;
+        int[] wz = wrapZ;
+        boolean any = false;
+        boolean[] opened = openedColumns.length < size * size ? (openedColumns = new boolean[size * size]) : openedColumns;
+        Arrays.fill(opened, 0, size * size, false);
+        for (int lz = 1; lz < size - 1; lz++) {
+            for (int lx = 1; lx < size - 1; lx++) {
+                int c = lz * size + lx;
+                if (rangeTable[c] == 0) {
+                    continue;
+                }
+                boolean now = wasLoaded[c - 1] && wasLoaded[c + 1] && wasLoaded[c - size] && wasLoaded[c + size];
+                if (now && !hadNeighbors[c]) {
+                    opened[c] = true;
+                    any = true;
+                    for (int gy = 0; gy < sizeY; gy++) {
+                        int slot = (wz[lz] * sizeY + gy) * sizeX + wx[lx];
+                        if ((st[slot] & FRAME_MASK) == mark && (st[slot] & REJECTED) != 0) {
+                            st[slot] = 0;
+                        }
+                    }
+                }
+                hadNeighbors[c] = now;
+            }
+        }
+        if (!any) {
+            return;
+        }
+        int[] packedQueue = queue;
+        int[] slotQueue = slots;
+        synchronized (GAINED_LOCK) {
+            for (int i = 0; i < cachedCount; i++) {
+                int packed = packedQueue[i];
+                int c = (packed >>> 8 & 0xFF) * size + (packed & 0xFF);
+                if (opened[c - 1] || opened[c + 1] || opened[c - size] || opened[c + size]) {
+                    if (gainedCount == gained.length) {
+                        gained = Arrays.copyOf(gained, gainedCount * 2);
+                    }
+                    gained[gainedCount++] = slotQueue[i];
+                }
+            }
+        }
+    }
+
+    private static boolean[] openedColumns = new boolean[0];
 
     // Like vanilla's partial update: sections that gained connections are expanded again on top of the cached search.
     private static void extend(int[] ids, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
