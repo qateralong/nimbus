@@ -34,7 +34,8 @@ public final class Presets {
         c.maxParticles = d.maxParticles;
         c.renderScale = 100;
         c.sharpness = 0;
-        c.sky = c.fog = c.weather = c.vignette = c.beaconBeams = c.animatedTextures = c.blockBreakParticles = true;
+        c.fog = false;
+        c.sky = c.weather = c.vignette = c.beaconBeams = c.animatedTextures = c.blockBreakParticles = true;
         c.enabled = true;
         switch (name) {
             case "none" -> {
