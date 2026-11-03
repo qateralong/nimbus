@@ -186,8 +186,17 @@ public final class Cull {
 
     private static boolean exempt(Entity entity) {
         Minecraft minecraft = Minecraft.getInstance();
-        return entity.noCulling || entity == minecraft.getCameraEntity() || entity == minecraft.player || entity.isPassenger() || entity.isVehicle()
-                || entity.isCurrentlyGlowing();
+        return entity.noCulling || entity == minecraft.getCameraEntity() || entity == minecraft.player || entity.isPassenger() || entity.isVehicle();
+    }
+
+    // glowing reads synced entity data, so it is only asked of entities that are about to be hidden
+    private static boolean hide(Entity entity) {
+        if (entity.isCurrentlyGlowing()) {
+            return false;
+        }
+        entitiesCulled++;
+        hiddenNext.add(entity.getId());
+        return true;
     }
 
     public static boolean entityVisible(Entity entity) {
@@ -201,26 +210,18 @@ public final class Cull {
         NimbusConfig config = NimbusConfig.get();
         if (!config.renderFrames && entity instanceof ItemFrame || !config.renderArmorStands && entity instanceof ArmorStand
                 || !config.renderPaintings && entity instanceof Painting) {
-            entitiesCulled++;
-            hiddenNext.add(entity.getId());
-            return false;
+            return !hide(entity);
         }
         int limit = entityLimit(entity);
         if (limit != Integer.MAX_VALUE && distanceSq(entity.getX(), entity.getY(), entity.getZ()) > limit) {
-            entitiesCulled++;
-            hiddenNext.add(entity.getId());
-            return false;
+            return !hide(entity);
         }
         AABB box = entity.getBoundingBox();
         if (NimbusConfig.get().sectionCulling && !sectionVisible(box)) {
-            entitiesCulled++;
-            hiddenNext.add(entity.getId());
-            return false;
+            return !hide(entity);
         }
         if (box.getSize() < 24 && Occlusion.entityHidden(entity.getId(), box)) {
-            entitiesCulled++;
-            hiddenNext.add(entity.getId());
-            return false;
+            return !hide(entity);
         }
         return true;
     }

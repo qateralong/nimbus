@@ -129,14 +129,36 @@ public abstract class ModelCubeMixin {
         short overlayV = (short) (overlay >> 16 & 0xFFFF);
         short lightU = (short) (light & 0xFFFF);
         short lightV = (short) (light >> 16 & 0xFFFF);
-        Vector3f normal = NIMBUS_VECTOR;
+        org.joml.Matrix3f m = pose.normal();
+        float m00 = m.m00();
+        float m01 = m.m01();
+        float m02 = m.m02();
+        float m10 = m.m10();
+        float m11 = m.m11();
+        float m12 = m.m12();
+        float m20 = m.m20();
+        float m21 = m.m21();
+        float m22 = m.m22();
+        boolean trusted = pose.trustedNormals;
         long p = base;
         int at = 0;
         for (ModelPart.Polygon polygon : this.polygons) {
-            pose.transformNormal(polygon.normal, normal);
-            byte nx = nimbus$normal(normal.x());
-            byte ny = nimbus$normal(normal.y());
-            byte nz = nimbus$normal(normal.z());
+            Vector3f source = polygon.normal;
+            float px = source.x();
+            float py = source.y();
+            float pz = source.z();
+            float tx = m00 * px + m10 * py + m20 * pz;
+            float ty = m01 * px + m11 * py + m21 * pz;
+            float tz = m02 * px + m12 * py + m22 * pz;
+            if (!trusted) {
+                float scale = org.joml.Math.invsqrt(tx * tx + ty * ty + tz * tz);
+                tx *= scale;
+                ty *= scale;
+                tz *= scale;
+            }
+            byte nx = nimbus$normal(tx);
+            byte ny = nimbus$normal(ty);
+            byte nz = nimbus$normal(tz);
             for (ModelPart.Vertex vertex : polygon.vertices) {
                 int corner = indices[at++] * 3;
                 org.lwjgl.system.MemoryUtil.memPutFloat(p, out[corner]);
