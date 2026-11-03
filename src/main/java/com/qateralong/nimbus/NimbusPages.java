@@ -222,6 +222,9 @@ public final class NimbusPages {
         toggle(optimizations, "dedup_models", c -> c.dedupModels, (c, v) -> c.dedupModels = v);
         toggle(optimizations, "stream_uploads", c -> c.streamUploads, (c, v) -> c.streamUploads = v);
         toggle(optimizations, "gui_batching", c -> c.guiBatching, (c, v) -> c.guiBatching = v);
+        toggle(optimizations, "item_icon_cache", c -> c.itemIconCache, (c, v) -> c.itemIconCache = v);
+        toggle(optimizations, "hud_cache", c -> c.hudCache, (c, v) -> c.hudCache = v);
+        optimizations.add(slider("hud_fps", 20, 144, 4, c -> c.hudFps, (c, v) -> c.hudFps = v, "fps"));
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("sodium")) {
             toggle(optimizations, "sodium_graph_cache", c -> c.sodiumGraphCache, (c, v) -> c.sodiumGraphCache = v);
         }

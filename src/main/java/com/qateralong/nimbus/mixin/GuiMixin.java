@@ -19,6 +19,14 @@ public abstract class GuiMixin {
         com.qateralong.nimbus.render.GuiBatch.end();
     }
 
+    @Inject(method = {"renderCameraOverlays", "renderCrosshair"}, at = @At("HEAD"), cancellable = true)
+    private void nimbus$live(net.minecraft.client.gui.GuiGraphics graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        // drawn live every frame by the HUD cache, never into it
+        if (com.qateralong.nimbus.render.HudCache.capturing()) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "renderVignette", at = @At("HEAD"), cancellable = true)
     private void nimbus$vignette(CallbackInfo ci) {
         NimbusConfig config = NimbusConfig.get();

@@ -14,4 +14,9 @@ public abstract class BatchFlushMixin {
     private static void nimbus$flush(MeshData mesh, CallbackInfo ci) {
         GuiBatch.stateChanged();
     }
+
+    @Inject(method = "drawWithShader", at = @At("HEAD"))
+    private static void nimbus$icons(MeshData mesh, CallbackInfo ci) {
+        com.qateralong.nimbus.render.ItemIcons.drawPending();
+    }
 }

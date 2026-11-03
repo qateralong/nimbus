@@ -83,6 +83,7 @@ public final class GuiBatch {
     }
 
     public static void endFrame() {
+        ItemIcons.endFrame();
         drawing = 0;
         items = false;
         flushText();
@@ -126,6 +127,7 @@ public final class GuiBatch {
     }
 
     private static void prepare(int next, ResourceLocation location) {
+        ItemIcons.drawPending();
         flushText();
         if (builder != null && (kind != next || !location.equals(texture))) {
             flush();
@@ -205,6 +207,17 @@ public final class GuiBatch {
         if (builder != null) {
             flush();
         }
+    }
+
+    // While suspended nothing is flushed or merged: for drawing into other targets and for restoring state.
+    public static boolean suspend() {
+        boolean was = internal;
+        internal = true;
+        return was;
+    }
+
+    public static void resume(boolean was) {
+        internal = was;
     }
 
     public static void flush() {

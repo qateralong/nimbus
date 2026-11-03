@@ -13,4 +13,9 @@ public abstract class InputMixin {
     private void nimbus$input(CallbackInfo ci) {
         Idle.input();
     }
+
+    @Inject(method = {"onPress", "onScroll"}, at = @At("HEAD"))
+    private void nimbus$hud(CallbackInfo ci) {
+        com.qateralong.nimbus.render.HudCache.invalidate();
+    }
 }

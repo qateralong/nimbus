@@ -5,6 +5,9 @@ import com.qateralong.nimbus.mixin.ViewAreaAccessor;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
@@ -15,9 +18,10 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
-// Section BFS (vanilla SectionOcclusionGraph rules) against a widened frustum, rerun only when the camera
-// leaves the margin, changes section, or the graph changes; every frame the cached result is filtered by
-// the real frustum using per-column section ranges.
+// Section BFS (vanilla SectionOcclusionGraph rules) against a widened frustum. Like vanilla's full update it runs
+// on its own thread when the camera changes section or the graph needs a refresh, and the previous result stays in
+// use until it lands; only leaving the widened frustum searches in the frame. Every frame the current result is
+// filtered by the real frustum using per-column section ranges.
 public final class Traversal {
     private static final int[] DX = new int[6];
     private static final int[] DY = new int[6];
@@ -25,6 +29,8 @@ public final class Traversal {
     private static final int[] OPPOSITE = new int[6];
     private static final int[] ENTRY_FACES = new int[64];
     private static final float WIDEN = (float) Math.tan(Math.toRadians(10.0));
+    // past half the margin a new search starts in the background, so it lands before the margin runs out
+    private static final float INNER_WIDEN = (float) Math.tan(Math.toRadians(5.0));
     private static final float MARGIN = 4.0F;
     private static final float NEAR_WIDEN = (float) Math.tan(Math.toRadians(1.0));
     private static final float NEAR_MARGIN = 1.0F;
@@ -50,7 +56,6 @@ public final class Traversal {
     }
 
     private static final float[] real = new float[24];
-    private static final float[] wide = new float[16];
     private static final float[] near = new float[16];
     private static double nearX;
     private static double nearY;
@@ -62,67 +67,46 @@ public final class Traversal {
     private static final int FRAME_SHIFT = 13;
     private static final int FRAME_MASK = -1 << FRAME_SHIFT;
     private static final int MAX_FRAME = 1 << 18;
-    private static int[] state = new int[0];
-    private static int[] packedOf = new int[0];
-    // per slot: search frame << 3 | axes whose line of sight already passed in that search
-    private static int[] rayMemo = new int[0];
     private static final int REVISIT = 1 << 30;
     private static final Object GAINED_LOCK = new Object();
     private static int[] gained = new int[256];
     private static int gainedCount;
+    // visibility masks by grid slot, shared by both graphs
     private static long[] slotMasks = new long[0];
-    // mask each visited slot was expanded with in the last search, -1 when it ignored the mask
-    private static long[] usedMasks = new long[0];
-    private static volatile int visitFrame = -1;
-    private static int[] queue = new int[4096];
-    private static int[] slots = new int[4096];
     private static int[] gridIds = new int[0];
     private static SectionRenderDispatcher.RenderSection[] gridOwner;
-    private static int frame;
 
-    private static int side;
-    private static short[] wideLo = new short[0];
-    private static short[] wideHi = new short[0];
-    private static boolean[] neighbors = new boolean[0];
-    private static boolean[] loaded = new boolean[0];
+    private static final boolean ASYNC = System.getProperty("nimbus.syncTraversal") == null;
+    private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "Nimbus traversal");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static Graph current = new Graph();
+    private static Graph spare = new Graph();
+    private static Future<?> pending;
+    private static Graph pendingGraph;
+    // slots whose mask changed while a background search ran; checked against its result when it lands
+    private static int[] touched = new int[256];
+    private static int touchedCount;
+    private static boolean installed;
+
     private static int[] realFrame = new int[0];
     private static short[] realLo = new short[0];
     private static short[] realHi = new short[0];
-    private static int[] wrapX = new int[0];
-    private static int[] wrapZ = new int[0];
-    private static byte[] rangeTable = new byte[0];
-    private static int rangeDistance = -1;
-
-    private static Object loadedSource;
-    private static int loadedChunks = -2;
-    private static int loadedX;
-    private static int loadedZ;
-    private static int loadedSide;
+    private static boolean[] openedColumns = new boolean[0];
 
     private static boolean cached;
-    private static int cachedCount;
-    private static int keySx;
-    private static int keySy;
-    private static int keySz;
-    private static int keyGraph;
-    private static int keyChanged;
     private static int framesCached;
     private static final int LAZY_FRAMES = 20;
     // partial expansion is approximate like vanilla's, so a full search re-converges now and then after gains
     private static final int GAIN_REFRESH_FRAMES = 120;
-    private static int keyGains;
-    private static int keyMoves;
-    private static int keyChunks;
-    private static int keyDistance;
-    private static boolean keyCull;
-    private static double originX;
-    private static double originY;
-    private static double originZ;
     private static int filterFrame;
 
     private static long lastHash;
     private static int lastCount = -1;
     private static int ownChanges = -1;
+    private static boolean lastGpu;
 
     public static volatile boolean smartCull = true;
     public static double cameraX;
@@ -131,6 +115,7 @@ public final class Traversal {
 
     public static int visited;
     public static int rebuilds;
+    public static int inFrame;
     public static long nanos;
     private static long bfsNanos;
 
@@ -166,75 +151,61 @@ public final class Traversal {
         var level = Minecraft.getInstance().level;
         var source = level == null ? null : level.getChunkSource();
         int chunks = source == null ? -1 : source.getLoadedChunksCount();
-        int graph = SectionData.graph;
-        int changed = SectionData.changed;
-        int gains = SectionData.gains;
         framesCached++;
-        int moves = Origins.moves;
-
         rays(matrix);
-        boolean steady = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz
-                && moves == keyMoves && (changed == keyChanged || framesCached < LAZY_FRAMES)
-                && (gains == keyGains || framesCached < GAIN_REFRESH_FRAMES) && distance == keyDistance && cull == keyCull
-                && contains(wide, MARGIN, frustum.camX - originX, frustum.camY - originY, frustum.camZ - originZ);
-        boolean valid = steady && chunks == keyChunks;
+
+        install(false);
+        Graph g = current;
+        boolean usable = usable(g, frustum, distance, cull, sizeX, sizeY);
+        if (!usable && pending != null) {
+            install(true);
+            g = current;
+            usable = usable(g, frustum, distance, cull, sizeX, sizeY);
+        }
+        boolean fresh = usable && camSx == g.sx && camSy == g.sy && camSz == g.sz && Origins.moves == g.moves
+                && (SectionData.changed == g.changed || framesCached < LAZY_FRAMES)
+                && (SectionData.gains == g.gains || framesCached < GAIN_REFRESH_FRAMES)
+                && (ASYNC ? contains(g.inner, MARGIN * 0.5F, frustum.camX - g.originX, frustum.camY - g.originY, frustum.camZ - g.originZ) : true);
+        if (!usable || !fresh && !ASYNC) {
+            Graph next = spare;
+            next.prepare(ids, source, chunks, sizeX, sizeY, sizeZ, minSection, distance, camSx, camSy, camSz, cull, frustum, WIDEN, MARGIN);
+            next.run();
+            install(next);
+            inFrame++;
+            g = current;
+        } else if (!fresh && pending == null) {
+            Graph next = spare;
+            next.prepare(ids, source, chunks, sizeX, sizeY, sizeZ, minSection, distance, camSx, camSy, camSz, cull, frustum, WIDEN, MARGIN);
+            pendingGraph = next;
+            touchedCount = 0;
+            pending = WORKER.submit(next::run);
+        }
+
         boolean grew = false;
-        if (steady && chunks != keyChunks) {
-            int before = cachedCount;
-            loadChunks(source, chunks, distance, camSx, camSz, sizeY, sizeX, minSection);
-            extend(ids, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
-            keyChunks = chunks;
-            valid = true;
-            grew = cachedCount != before;
+        if (chunks != g.chunks) {
+            int before = g.count;
+            g.loadChunks(source, chunks);
+            g.extend();
+            g.chunks = chunks;
+            grew = g.count != before;
         }
-        if (valid && graph != keyGraph) {
-            int before = cachedCount;
-            extend(ids, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
-            keyGraph = graph;
-            grew = cachedCount != before;
+        if (SectionData.graph != g.graph) {
+            int before = g.count;
+            g.extend();
+            g.graph = SectionData.graph;
+            grew |= g.count != before;
         }
-        if (!valid) {
-            long b0 = System.nanoTime();
-            widen(wide, WIDEN, MARGIN);
-            originX = frustum.camX;
-            originY = frustum.camY;
-            originZ = frustum.camZ;
-            graph = SectionData.graph;
-            changed = SectionData.changed;
-            gains = SectionData.gains;
-            prepareColumns(source, chunks, camSx, camSy, camSz, distance, minSection, sizeX, sizeY, sizeZ);
-            cachedCount = search(sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
-            if (cachedIds.length < cachedCount) {
-                cachedIds = new int[Math.max(cachedCount, cachedIds.length * 2)];
-            }
-            int[] slotQueue = slots;
-            for (int i = 0; i < cachedCount; i++) {
-                cachedIds[i] = ids[slotQueue[i]];
-            }
-            cached = true;
-            keySx = camSx;
-            keySy = camSy;
-            keySz = camSz;
-            keyGraph = graph;
-            keyChanged = changed;
-            keyGains = gains;
-            framesCached = 0;
-            keyMoves = moves;
-            keyChunks = chunks;
-            keyDistance = distance;
-            keyCull = cull;
-            rebuilds++;
-            bfsNanos = ema(bfsNanos, System.nanoTime() - b0);
-        }
+        boolean rebuilt = installed;
+        installed = false;
         boolean gpu = Terrain.gpuFrustum();
-        if (!valid || grew || !Visibility.valid || Visibility.changes != ownChanges || gpu != lastGpu
+        if (rebuilt || grew || !Visibility.valid || Visibility.changes != ownChanges || gpu != lastGpu
                 || !gpu && !contains(near, NEAR_MARGIN, frustum.camX - nearX, frustum.camY - nearY, frustum.camZ - nearZ)) {
             lastGpu = gpu;
             widen(near, NEAR_WIDEN, NEAR_MARGIN);
             nearX = frustum.camX;
             nearY = frustum.camY;
             nearZ = frustum.camZ;
-            emit(ids, distance, minSection, camSx, camSz, nearX, nearY, nearZ, gpu);
+            emit(g, nearX, nearY, nearZ, gpu);
         } else {
             Visibility.refresh();
             ownChanges = Visibility.changes;
@@ -255,6 +226,63 @@ public final class Traversal {
         }
         long took = System.nanoTime() - started;
         nanos = ema(nanos, took);
+    }
+
+    private static boolean usable(Graph g, Frustum frustum, int distance, boolean cull, int sizeX, int sizeY) {
+        return cached && Visibility.valid && g.distance == distance && g.cull == cull && g.sizeX == sizeX && g.sizeY == sizeY
+                && contains(g.wide, MARGIN, frustum.camX - g.originX, frustum.camY - g.originY, frustum.camZ - g.originZ);
+    }
+
+    // Lands a finished background search; with wait, blocks until the running one finishes.
+    private static void install(boolean wait) {
+        Future<?> task = pending;
+        if (task == null || !wait && !task.isDone()) {
+            return;
+        }
+        Graph g = pendingGraph;
+        pending = null;
+        pendingGraph = null;
+        try {
+            task.get();
+        } catch (Exception e) {
+            com.qateralong.nimbus.Nimbus.LOGGER.warn("Nimbus: background section search failed", e);
+            touchedCount = 0;
+            return;
+        }
+        install(g);
+    }
+
+    private static void install(Graph g) {
+        spare = current;
+        current = g;
+        cached = true;
+        installed = true;
+        framesCached = 0;
+        rebuilds++;
+        bfsNanos = ema(bfsNanos, g.nanos);
+        int mark = g.visitFrame << FRAME_SHIFT;
+        long[] masks = slotMasks;
+        synchronized (GAINED_LOCK) {
+            gainedCount = 0;
+            for (int i = 0; i < touchedCount; i++) {
+                int slot = touched[i];
+                int bits = g.state[slot];
+                if ((bits & FRAME_MASK) == mark && (bits & REJECTED) == 0 && (masks[slot] & ~g.usedMasks[slot]) != 0L) {
+                    addGained(slot);
+                }
+            }
+            if (gainedCount > 0) {
+                g.graph = ~SectionData.graph;
+            }
+        }
+        touchedCount = 0;
+    }
+
+    private static void addGained(int slot) {
+        if (gainedCount == gained.length) {
+            gained = Arrays.copyOf(gained, gainedCount * 2);
+        }
+        gained[gainedCount++] = slot;
     }
 
     private static void widen(float[] out, float widen, float margin) {
@@ -282,12 +310,10 @@ public final class Traversal {
     // Debug (-Dnimbus.traversalCheck): exact search without margins; every section it finds must be in the shown list.
     private static void check(int[] ids, Frustum frustum, Object source, int chunks, int distance, int minSection, int sizeX, int sizeY, int sizeZ,
                               int camSx, int camSy, int camSz, boolean cull) {
-        widen(wide, 0.0F, 0.0F);
-        originX = frustum.camX;
-        originY = frustum.camY;
-        originZ = frustum.camZ;
-        prepareColumns(source, chunks, camSx, camSy, camSz, distance, minSection, sizeX, sizeY, sizeZ);
-        int exact = search(sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+        install(true);
+        Graph g = spare;
+        g.prepare(ids, source, chunks, sizeX, sizeY, sizeZ, minSection, distance, camSx, camSy, camSz, cull, frustum, 0.0F, 0.0F);
+        int exact = g.search();
         it.unimi.dsi.fastutil.ints.IntOpenHashSet shown = new it.unimi.dsi.fastutil.ints.IntOpenHashSet(Visibility.allCount * 2);
         for (int i = 0; i < Visibility.allCount; i++) {
             shown.add(Visibility.allIds[i]);
@@ -295,7 +321,7 @@ public final class Traversal {
         int missing = 0;
         int missingDrawn = 0;
         for (int i = 0; i < exact; i++) {
-            int id = ids[slots[i]];
+            int id = ids[g.slots[i]];
             if (!shown.contains(id)) {
                 missing++;
                 if (id < SectionData.mask.length && SectionData.mask[id] != 0) {
@@ -305,7 +331,6 @@ public final class Traversal {
         }
         com.qateralong.nimbus.Nimbus.LOGGER.info("Nimbus traversal check: exact {}, shown {}, missing {} ({} with geometry)",
                 exact, Visibility.allCount, missing, missingDrawn);
-        cached = false;
     }
 
     private static final boolean CHECK = System.getProperty("nimbus.traversalCheck") != null;
@@ -362,375 +387,9 @@ public final class Traversal {
         return sLo > sHi ? EMPTY : (sLo & 0xFFFF) | sHi << 16;
     }
 
-    private static void prepareColumns(Object chunkSource, int chunks, int camSx, int camSy, int camSz, int distance, int minSection,
-                                       int sizeX, int sizeY, int sizeZ) {
-        int size = 2 * distance + 3;
-        int cells = size * size;
-        if (wideLo.length < cells) {
-            wideLo = new short[cells];
-            wideHi = new short[cells];
-            neighbors = new boolean[cells];
-            loaded = new boolean[cells];
-            realFrame = new int[cells];
-            realLo = new short[cells];
-            realHi = new short[cells];
-        }
-        if (wrapX.length < size) {
-            wrapX = new int[size];
-            wrapZ = new int[size];
-        }
-        side = size;
-        int base = distance + 1;
-        for (int i = 0; i < size; i++) {
-            wrapX[i] = Math.floorMod(camSx + i - base, sizeX);
-            wrapZ[i] = Math.floorMod(camSz + i - base, sizeZ);
-        }
-        var source = (net.minecraft.client.multiplayer.ClientChunkCache) chunkSource;
-        if (chunkSource != loadedSource || chunks != loadedChunks || camSx != loadedX || camSz != loadedZ || size != loadedSide) {
-            loadedSource = chunkSource;
-            loadedChunks = chunks;
-            loadedX = camSx;
-            loadedZ = camSz;
-            loadedSide = size;
-            for (int lz = 0; lz < size; lz++) {
-                for (int lx = 0; lx < size; lx++) {
-                    loaded[lz * size + lx] = source != null && source.hasChunk(camSx + lx - base, camSz + lz - base);
-                }
-            }
-        }
-        if (rangeDistance != distance || rangeTable.length != cells) {
-            rangeDistance = distance;
-            rangeTable = new byte[cells];
-            for (int lz = 0; lz < size; lz++) {
-                for (int lx = 0; lx < size; lx++) {
-                    rangeTable[lz * size + lx] = (byte) (ChunkTrackingView.isInViewDistance(0, 0, distance, lx - base, lz - base) ? 1 : 0);
-                }
-            }
-        }
-        // vanilla: abs(cameraY - sectionCenterY) <= distance * 16
-        double camY = cameraY;
-        int yLo = Math.max(minSection, (int) Math.ceil((camY - distance * 16.0 - 8.0) / 16.0));
-        int yHi = Math.min(minSection + sizeY - 1, (int) Math.floor((camY + distance * 16.0 - 8.0) / 16.0));
-        for (int lz = 0; lz < size; lz++) {
-            for (int lx = 0; lx < size; lx++) {
-                int c = lz * size + lx;
-                realFrame[c] = 0;
-                int lo = EMPTY;
-                int hi = -EMPTY;
-                if (rangeTable[c] != 0) {
-                    int r = range(wide, 4, ((camSx + lx - base) << 4) - originX, ((camSz + lz - base) << 4) - originZ, originY);
-                    if (r != EMPTY) {
-                        lo = Math.max(yLo, (short) r);
-                        hi = Math.min(yHi, r >> 16);
-                    }
-                    neighbors[c] = lx > 0 && lz > 0 && lx < size - 1 && lz < size - 1 && loaded[c - 1] && loaded[c + 1]
-                            && loaded[c - size] && loaded[c + size];
-                }
-                wideLo[c] = (short) lo;
-                wideHi[c] = (short) hi;
-            }
-        }
-    }
-
-    private static int search(int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
-        if (++frame == MAX_FRAME) {
-            frame = 1;
-            Arrays.fill(state, 0);
-            Arrays.fill(rayMemo, 0);
-        }
-        int now = frame;
-        visitFrame = now;
-        int mark = now << FRAME_SHIFT;
-        int size = side;
-        int base = distance + 1;
-        int[] st = state;
-        short[] lo = wideLo;
-        short[] hi = wideHi;
-        int[] wx = wrapX;
-        int[] wz = wrapZ;
-        synchronized (GAINED_LOCK) {
-            gainedCount = 0;
-        }
-        int tail = 0;
-
-        if (camSy >= minSection && camSy < minSection + sizeY) {
-            int slot = (wz[base] * sizeY + camSy - minSection) * sizeX + wx[base];
-            st[slot] = mark;
-            tail = push(tail, slot, base, camSy - minSection, base);
-        } else {
-            boolean above = camSy >= minSection + sizeY;
-            int layer = above ? minSection + sizeY - 1 : minSection;
-            int dir = (above ? Direction.DOWN : Direction.UP).ordinal();
-            for (int ring = 0; ring <= distance; ring++) {
-                for (int dx = -ring; dx <= ring; dx++) {
-                    for (int dz = -ring; dz <= ring; dz++) {
-                        if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) {
-                            continue;
-                        }
-                        int lx = base + dx;
-                        int lz = base + dz;
-                        int c = lz * size + lx;
-                        if (rangeTable[c] == 0 || layer < lo[c] || layer > hi[c]) {
-                            continue;
-                        }
-                        int slot = (wz[lz] * sizeY + layer - minSection) * sizeX + wx[lx];
-                        if ((st[slot] & FRAME_MASK) == mark) {
-                            continue;
-                        }
-                        st[slot] = mark | (1 << dir) << 6 | (1 << dir);
-                        tail = push(tail, slot, lx, layer - minSection, lz);
-                    }
-                }
-            }
-        }
-        return propagate(0, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull, false);
-    }
-
-    // revisit: a found section that gains an entry direction is expanded again (its earlier expansion used fewer entries)
-    private static int propagate(int head, int tail, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull,
-                                 boolean revisit) {
-        int now = frame;
-        int mark = now << FRAME_SHIFT;
-        int[] passed = rayMemo;
-        int size = side;
-        int base = distance + 1;
-        int[] st = state;
-        long[] masks = slotMasks;
-        long[] used = usedMasks;
-        short[] lo = wideLo;
-        short[] hi = wideHi;
-        int[] wx = wrapX;
-        int[] wz = wrapZ;
-        double camX = cameraX;
-        double camY = cameraY;
-        double camZ = cameraZ;
-        int centerX = (camSx << 4) + 8;
-        int centerY = (camSy << 4) + 8;
-        int centerZ = (camSz << 4) + 8;
-        while (head < tail) {
-            int packed = queue[head];
-            int cur = slots[head++];
-            int lx = packed & 0xFF;
-            int lz = (packed >>> 8) & 0xFF;
-            int gy = (packed >>> 16) & 0x3FFF;
-            int bits = st[cur];
-            int moved = (bits >>> 6) & 63;
-            int from = bits & 63;
-            long mask = cull && from != 0 ? masks[cur] : -1L;
-            used[cur] = mask;
-            int entries = ENTRY_FACES[from];
-            int ox = (camSx + lx - base) << 4;
-            int oy = (gy + minSection) << 4;
-            int oz = (camSz + lz - base) << 4;
-            boolean far = cull && (Math.abs(ox - centerX) > 60 || Math.abs(oy - centerY) > 60 || Math.abs(oz - centerZ) > 60);
-            for (int d = 0; d < 6; d++) {
-                if (cull && (moved & (1 << OPPOSITE[d])) != 0) {
-                    continue;
-                }
-                if (mask != -1L && ((mask >>> (d * 6)) & entries) == 0) {
-                    continue;
-                }
-                int nx = lx + DX[d];
-                int nz = lz + DZ[d];
-                int ngy = gy + DY[d];
-                int c = nz * size + nx;
-                int ny = ngy + minSection;
-                if (ny < lo[c] || ny > hi[c]) {
-                    continue;
-                }
-                int slot = (wz[nz] * sizeY + ngy) * sizeX + wx[nx];
-                int seen = st[slot];
-                boolean visited = (seen & FRAME_MASK) == mark;
-                if (visited && (seen & (REJECTED | 1 << d)) != 0) {
-                    continue;
-                }
-                if (far) {
-                    int axis = d >> 1;
-                    int memo = passed[slot];
-                    if (memo >>> 3 != now || (memo >>> axis & 1) == 0) {
-                        if (!lineOfSight(d, ox + (DX[d] << 4), oy + (DY[d] << 4), oz + (DZ[d] << 4), centerX, centerY, centerZ,
-                                camX, camY, camZ, camSx, camSz, base, size, minSection, sizeX, sizeY, mark)) {
-                            continue;
-                        }
-                        passed[slot] = (memo >>> 3 == now ? memo : now << 3) | 1 << axis;
-                    }
-                }
-                if (visited) {
-                    st[slot] = seen | (1 << d);
-                    if (revisit) {
-                        tail = pushRevisit(tail, slot);
-                    }
-                    continue;
-                }
-                // vanilla hasAllNeighbors(): side chunks only matter beyond 24 blocks
-                if (!neighbors[c]) {
-                    double ddx = ((camSx + nx - base) << 4) + 8 - camX;
-                    double ddy = (ny << 4) + 8 - camY;
-                    double ddz = ((camSz + nz - base) << 4) + 8 - camZ;
-                    if (ddx * ddx + ddy * ddy + ddz * ddz > 576.0) {
-                        st[slot] = mark | REJECTED;
-                        continue;
-                    }
-                }
-                st[slot] = mark | (moved | (1 << d)) << 6 | (1 << d);
-                tail = push(tail, slot, nx, ngy, nz);
-            }
-        }
-        return tail;
-    }
-
-    // Chunks arrived or left without the camera changing section: columns whose four side chunks are now all loaded
-    // drop their rejections, and found sections next to them are expanded again. Lost chunks only leave extra sections.
-    private static void loadChunks(Object chunkSource, int chunks, int distance, int camSx, int camSz, int sizeY, int sizeX, int minSection) {
-        var source = (net.minecraft.client.multiplayer.ClientChunkCache) chunkSource;
-        int size = side;
-        int base = distance + 1;
-        boolean[] wasLoaded = loaded;
-        boolean[] hadNeighbors = neighbors;
-        for (int lz = 0; lz < size; lz++) {
-            for (int lx = 0; lx < size; lx++) {
-                wasLoaded[lz * size + lx] = source != null && source.hasChunk(camSx + lx - base, camSz + lz - base);
-            }
-        }
-        loadedChunks = chunks;
-        int[] st = state;
-        int mark = frame << FRAME_SHIFT;
-        int[] wx = wrapX;
-        int[] wz = wrapZ;
-        boolean any = false;
-        boolean[] opened = openedColumns.length < size * size ? (openedColumns = new boolean[size * size]) : openedColumns;
-        Arrays.fill(opened, 0, size * size, false);
-        for (int lz = 1; lz < size - 1; lz++) {
-            for (int lx = 1; lx < size - 1; lx++) {
-                int c = lz * size + lx;
-                if (rangeTable[c] == 0) {
-                    continue;
-                }
-                boolean now = wasLoaded[c - 1] && wasLoaded[c + 1] && wasLoaded[c - size] && wasLoaded[c + size];
-                if (now && !hadNeighbors[c]) {
-                    opened[c] = true;
-                    any = true;
-                    for (int gy = 0; gy < sizeY; gy++) {
-                        int slot = (wz[lz] * sizeY + gy) * sizeX + wx[lx];
-                        if ((st[slot] & FRAME_MASK) == mark && (st[slot] & REJECTED) != 0) {
-                            st[slot] = 0;
-                        }
-                    }
-                }
-                hadNeighbors[c] = now;
-            }
-        }
-        if (!any) {
-            return;
-        }
-        int[] packedQueue = queue;
-        int[] slotQueue = slots;
-        synchronized (GAINED_LOCK) {
-            for (int i = 0; i < cachedCount; i++) {
-                int packed = packedQueue[i];
-                int c = (packed >>> 8 & 0xFF) * size + (packed & 0xFF);
-                if (opened[c - 1] || opened[c + 1] || opened[c - size] || opened[c + size]) {
-                    if (gainedCount == gained.length) {
-                        gained = Arrays.copyOf(gained, gainedCount * 2);
-                    }
-                    gained[gainedCount++] = slotQueue[i];
-                }
-            }
-        }
-    }
-
-    private static boolean[] openedColumns = new boolean[0];
-
-    // Like vanilla's partial update: sections that gained connections are expanded again on top of the cached search.
-    private static void extend(int[] ids, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
-        int start = cachedCount;
-        int tail = start;
-        synchronized (GAINED_LOCK) {
-            for (int i = 0; i < gainedCount; i++) {
-                int slot = gained[i];
-                if (tail == queue.length) {
-                    queue = Arrays.copyOf(queue, tail * 2);
-                    slots = Arrays.copyOf(slots, tail * 2);
-                }
-                queue[tail] = packedOf[slot] | REVISIT;
-                slots[tail++] = slot;
-            }
-            gainedCount = 0;
-        }
-        if (tail == start) {
-            return;
-        }
-        tail = propagate(start, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull, true);
-        int[] packedQueue = queue;
-        int[] slotQueue = slots;
-        int count = start;
-        for (int i = start; i < tail; i++) {
-            if ((packedQueue[i] & REVISIT) == 0) {
-                packedQueue[count] = packedQueue[i];
-                slotQueue[count++] = slotQueue[i];
-            }
-        }
-        if (cachedIds.length < count) {
-            cachedIds = Arrays.copyOf(cachedIds, Math.max(count, cachedIds.length * 2));
-        }
-        for (int i = start; i < count; i++) {
-            cachedIds[i] = ids[slotQueue[i]];
-        }
-        cachedCount = count;
-    }
-
-    // Vanilla's far-section rule: walking from the neighbour towards the camera must only cross sections already reached.
-    private static boolean lineOfSight(int d, int nx, int ny, int nz, int centerX, int centerY, int centerZ, double camX, double camY, double camZ,
-                                       int camSx, int camSz, int base, int size, int minSection, int sizeX, int sizeY, int mark) {
-        boolean axisX = d >= 4;
-        boolean axisY = d < 2;
-        boolean axisZ = !axisX && !axisY;
-        double vx = nx + ((axisX ? centerX > nx : centerX < nx) ? 16 : 0);
-        double vy = ny + ((axisY ? centerY > ny : centerY < ny) ? 16 : 0);
-        double vz = nz + ((axisZ ? centerZ > nz : centerZ < nz) ? 16 : 0);
-        double dx = camX - vx;
-        double dy = camY - vy;
-        double dz = camZ - vz;
-        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (length < 1.0E-4) {
-            return true;
-        }
-        double scale = CEILED_SECTION_DIAGONAL / length;
-        double sx = dx * scale;
-        double sy = dy * scale;
-        double sz = dz * scale;
-        double minY = minSection << 4;
-        double maxY = (minSection + sizeY) << 4;
-        int[] st = state;
-        int[] wx = wrapX;
-        int[] wz = wrapZ;
-        while (dx * dx + dy * dy + dz * dz > 3600.0) {
-            vx += sx;
-            vy += sy;
-            vz += sz;
-            dx = camX - vx;
-            dy = camY - vy;
-            dz = camZ - vz;
-            if (vy > maxY || vy < minY) {
-                return true;
-            }
-            int lx = ((int) Math.floor(vx) >> 4) - camSx + base;
-            int lz = ((int) Math.floor(vz) >> 4) - camSz + base;
-            int gy = ((int) Math.floor(vy) >> 4) - minSection;
-            if (lx < 0 || lz < 0 || lx >= size || lz >= size || gy < 0 || gy >= sizeY) {
-                return false;
-            }
-            int bits = st[(wz[lz] * sizeY + gy) * sizeX + wx[lx]];
-            if ((bits & FRAME_MASK) != mark || (bits & REJECTED) != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static final double CEILED_SECTION_DIAGONAL = Math.ceil(Math.sqrt(3.0) * 16.0);
 
-    // Called when a section's visibility mask changes; true if the cached search read that section.
+    // Called on the render thread when a section's visibility mask changes; true if the current result read that section.
     public static boolean onMask(int id, long mask) {
         int[] slotOf = SectionData.slotOf;
         if (id >= slotOf.length) {
@@ -742,47 +401,62 @@ public final class Traversal {
             return false;
         }
         masks[slot] = mask;
-        int bits = state[slot];
-        // lost connections only leave extra sections in the cached result, which is safe; the lazy path drops them
-        if ((bits & FRAME_MASK) != visitFrame << FRAME_SHIFT || (bits & REJECTED) != 0 || (mask & ~usedMasks[slot]) == 0L) {
+        if (pending != null) {
+            if (touchedCount == touched.length) {
+                touched = Arrays.copyOf(touched, touchedCount * 2);
+            }
+            touched[touchedCount++] = slot;
+        }
+        Graph g = current;
+        if (slot >= g.state.length) {
+            return false;
+        }
+        int bits = g.state[slot];
+        // lost connections only leave extra sections in the current result, which is safe; the lazy path drops them
+        if ((bits & FRAME_MASK) != g.visitFrame << FRAME_SHIFT || (bits & REJECTED) != 0 || (mask & ~g.usedMasks[slot]) == 0L) {
             return false;
         }
         synchronized (GAINED_LOCK) {
-            if (gainedCount == gained.length) {
-                gained = Arrays.copyOf(gained, gainedCount * 2);
-            }
-            gained[gainedCount++] = slot;
+            addGained(slot);
         }
         return true;
     }
 
-    private static boolean lastGpu;
-
     // gpu: the GPU tests every draw against the frustum, so the whole widened search is shown
-    private static void emit(int[] ids, int distance, int minSection, int camSx, int camSz, double fx, double fy, double fz, boolean gpu) {
+    private static void emit(Graph g, double fx, double fy, double fz, boolean gpu) {
+        int size = g.side;
+        int cells = size * size;
+        if (realFrame.length < cells) {
+            realFrame = new int[cells];
+            realLo = new short[cells];
+            realHi = new short[cells];
+            filterFrame = 0;
+        }
         if (++filterFrame == Integer.MAX_VALUE) {
             filterFrame = 1;
             Arrays.fill(realFrame, 0);
         }
         int now = filterFrame;
-        int size = side;
-        int base = distance + 1;
-        int[] packedQueue = queue;
-        int[] cached = cachedIds;
+        int base = g.distance + 1;
+        int camSx = g.sx;
+        int camSz = g.sz;
+        int minSection = g.minSection;
+        int[] packedQueue = g.queue;
+        int[] cachedIds = g.ids;
         int[] frames = realFrame;
         short[] lo = realLo;
         short[] hi = realHi;
         long hash = 1469598103934665603L;
         int count = 0;
         int skipped = 0;
-        int total = cachedCount;
+        int total = g.count;
         for (int i = 0; i < total; i++) {
             int packed = packedQueue[i];
             int lx = packed & 0xFF;
             int lz = (packed >>> 8) & 0xFF;
             int c = lz * size + lx;
             if (gpu) {
-                int id = cached[i];
+                int id = cachedIds[i];
                 hash = (hash ^ id) * 1099511628211L;
                 filtered = grow(filtered, count);
                 filtered[count++] = id;
@@ -797,10 +471,10 @@ public final class Traversal {
             int ny = (packed >>> 16) + minSection;
             if (ny < lo[c] || ny > hi[c]) {
                 hidden = grow(hidden, skipped);
-                hidden[skipped++] = cached[i];
+                hidden[skipped++] = cachedIds[i];
                 continue;
             }
-            int id = cached[i];
+            int id = cachedIds[i];
             hash = (hash ^ id) * 1099511628211L;
             filtered = grow(filtered, count);
             filtered[count++] = id;
@@ -835,46 +509,29 @@ public final class Traversal {
 
     private static int[] filtered = new int[4096];
     private static int[] hidden = new int[4096];
-    private static int[] cachedIds = new int[4096];
 
     private static int[] grow(int[] array, int index) {
         return index < array.length ? array : Arrays.copyOf(array, array.length * 2);
     }
 
-    private static int pushRevisit(int tail, int slot) {
-        if (tail == queue.length) {
-            queue = Arrays.copyOf(queue, tail * 2);
-            slots = Arrays.copyOf(slots, tail * 2);
-        }
-        queue[tail] = packedOf[slot] | REVISIT;
-        slots[tail] = slot;
-        return tail + 1;
-    }
-
-    private static int push(int tail, int slot, int lx, int gy, int lz) {
-        if (tail == queue.length) {
-            queue = Arrays.copyOf(queue, tail * 2);
-            slots = Arrays.copyOf(slots, tail * 2);
-        }
-        int packed = lx | lz << 8 | gy << 16;
-        queue[tail] = packed;
-        slots[tail] = slot;
-        packedOf[slot] = packed;
-        return tail + 1;
-    }
-
     private static int[] gridIds(SectionRenderDispatcher.RenderSection[] grid) {
         if (grid != gridOwner || gridIds.length != grid.length) {
+            if (pending != null) {
+                try {
+                    pending.get();
+                } catch (Exception ignored) {
+                }
+                pending = null;
+                pendingGraph = null;
+            }
+            touchedCount = 0;
             int[] ids = new int[grid.length];
             for (int i = 0; i < grid.length; i++) {
                 ids[i] = ((SectionStamp) grid[i]).nimbus$id();
             }
             gridIds = ids;
-            state = new int[grid.length];
-            packedOf = new int[grid.length];
-            rayMemo = new int[grid.length];
-            frame = 0;
-            visitFrame = -1;
+            current.reset(grid.length);
+            spare.reset(grid.length);
             long[] masks = new long[grid.length];
             int[] slotOf = SectionData.slotOf;
             Arrays.fill(slotOf, -1);
@@ -887,7 +544,6 @@ public final class Traversal {
                 }
             }
             slotMasks = masks;
-            usedMasks = new long[grid.length];
             gridOwner = grid;
             cached = false;
         }
@@ -903,7 +559,495 @@ public final class Traversal {
     }
 
     public static String debug() {
-        return String.format(java.util.Locale.ROOT, "traversal %d cached, %d shown, %d rebuilds, %.2f ms (bfs %.2f ms)",
-                visited, lastCount, rebuilds, nanos / 1e6, bfsNanos / 1e6);
+        return String.format(java.util.Locale.ROOT, "traversal %d cached, %d shown, %d rebuilds (%d in frame), %.2f ms (bfs %.2f ms)",
+                visited, lastCount, rebuilds, inFrame, nanos / 1e6, bfsNanos / 1e6);
+    }
+
+    // One search result and everything needed to extend it. The background search only touches its own graph,
+    // the grid ids and the shared slot masks; everything else here is the render thread's.
+    private static final class Graph {
+        int[] state = new int[0];
+        int[] packedOf = new int[0];
+        // per slot: search frame << 3 | axes whose line of sight already passed in that search
+        int[] rayMemo = new int[0];
+        // mask each visited slot was expanded with in the last search, -1 when it ignored the mask
+        long[] usedMasks = new long[0];
+        int[] queue = new int[4096];
+        int[] slots = new int[4096];
+        int frame;
+        int visitFrame = -1;
+
+        int side;
+        short[] wideLo = new short[0];
+        short[] wideHi = new short[0];
+        boolean[] neighbors = new boolean[0];
+        boolean[] loaded = new boolean[0];
+        int[] wrapX = new int[0];
+        int[] wrapZ = new int[0];
+        byte[] rangeTable = new byte[0];
+        int rangeDistance = -1;
+        Object loadedSource;
+        int loadedChunks = -2;
+        int loadedX;
+        int loadedZ;
+        int loadedSide;
+
+        final float[] wide = new float[16];
+        final float[] inner = new float[16];
+        double originX;
+        double originY;
+        double originZ;
+        double camX;
+        double camY;
+        double camZ;
+        int[] grid = new int[0];
+        int sizeX;
+        int sizeY;
+        int minSection;
+        int sx;
+        int sy;
+        int sz;
+        int distance = -1;
+        boolean cull;
+        int graph;
+        int changed;
+        int gains;
+        int moves;
+        int chunks;
+
+        int count;
+        int[] ids = new int[4096];
+        long nanos;
+
+        void reset(int length) {
+            state = new int[length];
+            packedOf = new int[length];
+            rayMemo = new int[length];
+            usedMasks = new long[length];
+            frame = 0;
+            visitFrame = -1;
+            count = 0;
+            distance = -1;
+            loadedSource = null;
+            loadedChunks = -2;
+        }
+
+        void prepare(int[] gridIds, Object source, int chunks, int sizeX, int sizeY, int sizeZ, int minSection, int distance, int camSx, int camSy,
+                     int camSz, boolean cull, Frustum frustum, float widen, float margin) {
+            this.grid = gridIds;
+            this.sizeX = sizeX;
+            this.sizeY = sizeY;
+            this.minSection = minSection;
+            this.distance = distance;
+            this.sx = camSx;
+            this.sy = camSy;
+            this.sz = camSz;
+            this.cull = cull;
+            this.camX = cameraX;
+            this.camY = cameraY;
+            this.camZ = cameraZ;
+            this.graph = SectionData.graph;
+            this.changed = SectionData.changed;
+            this.gains = SectionData.gains;
+            this.moves = Origins.moves;
+            this.chunks = chunks;
+            widen(wide, widen, margin);
+            widen(inner, INNER_WIDEN, margin * 0.5F);
+            originX = frustum.camX;
+            originY = frustum.camY;
+            originZ = frustum.camZ;
+            prepareColumns(source, chunks, sizeZ);
+        }
+
+        void run() {
+            long started = System.nanoTime();
+            int total = search();
+            if (ids.length < total) {
+                ids = new int[Math.max(total, ids.length * 2)];
+            }
+            int[] slotQueue = slots;
+            int[] byGrid = grid;
+            for (int i = 0; i < total; i++) {
+                ids[i] = byGrid[slotQueue[i]];
+            }
+            count = total;
+            nanos = System.nanoTime() - started;
+        }
+
+        private void prepareColumns(Object chunkSource, int chunks, int sizeZ) {
+            int size = 2 * distance + 3;
+            int cells = size * size;
+            if (wideLo.length < cells) {
+                wideLo = new short[cells];
+                wideHi = new short[cells];
+                neighbors = new boolean[cells];
+                loaded = new boolean[cells];
+            }
+            if (wrapX.length < size) {
+                wrapX = new int[size];
+                wrapZ = new int[size];
+            }
+            side = size;
+            int base = distance + 1;
+            for (int i = 0; i < size; i++) {
+                wrapX[i] = Math.floorMod(sx + i - base, sizeX);
+                wrapZ[i] = Math.floorMod(sz + i - base, sizeZ);
+            }
+            var source = (net.minecraft.client.multiplayer.ClientChunkCache) chunkSource;
+            if (chunkSource != loadedSource || chunks != loadedChunks || sx != loadedX || sz != loadedZ || size != loadedSide) {
+                loadedSource = chunkSource;
+                loadedChunks = chunks;
+                loadedX = sx;
+                loadedZ = sz;
+                loadedSide = size;
+                for (int lz = 0; lz < size; lz++) {
+                    for (int lx = 0; lx < size; lx++) {
+                        loaded[lz * size + lx] = source != null && source.hasChunk(sx + lx - base, sz + lz - base);
+                    }
+                }
+            }
+            if (rangeDistance != distance || rangeTable.length != cells) {
+                rangeDistance = distance;
+                rangeTable = new byte[cells];
+                for (int lz = 0; lz < size; lz++) {
+                    for (int lx = 0; lx < size; lx++) {
+                        rangeTable[lz * size + lx] = (byte) (ChunkTrackingView.isInViewDistance(0, 0, distance, lx - base, lz - base) ? 1 : 0);
+                    }
+                }
+            }
+            // vanilla: abs(cameraY - sectionCenterY) <= distance * 16
+            int yLo = Math.max(minSection, (int) Math.ceil((camY - distance * 16.0 - 8.0) / 16.0));
+            int yHi = Math.min(minSection + sizeY - 1, (int) Math.floor((camY + distance * 16.0 - 8.0) / 16.0));
+            for (int lz = 0; lz < size; lz++) {
+                for (int lx = 0; lx < size; lx++) {
+                    int c = lz * size + lx;
+                    int lo = EMPTY;
+                    int hi = -EMPTY;
+                    if (rangeTable[c] != 0) {
+                        int r = range(wide, 4, ((sx + lx - base) << 4) - originX, ((sz + lz - base) << 4) - originZ, originY);
+                        if (r != EMPTY) {
+                            lo = Math.max(yLo, (short) r);
+                            hi = Math.min(yHi, r >> 16);
+                        }
+                        neighbors[c] = lx > 0 && lz > 0 && lx < size - 1 && lz < size - 1 && loaded[c - 1] && loaded[c + 1]
+                                && loaded[c - size] && loaded[c + size];
+                    }
+                    wideLo[c] = (short) lo;
+                    wideHi[c] = (short) hi;
+                }
+            }
+        }
+
+        int search() {
+            if (++frame == MAX_FRAME) {
+                frame = 1;
+                Arrays.fill(state, 0);
+                Arrays.fill(rayMemo, 0);
+            }
+            int now = frame;
+            visitFrame = now;
+            int mark = now << FRAME_SHIFT;
+            int size = side;
+            int base = distance + 1;
+            int[] st = state;
+            short[] lo = wideLo;
+            short[] hi = wideHi;
+            int[] wx = wrapX;
+            int[] wz = wrapZ;
+            int tail = 0;
+
+            if (sy >= minSection && sy < minSection + sizeY) {
+                int slot = (wz[base] * sizeY + sy - minSection) * sizeX + wx[base];
+                st[slot] = mark;
+                tail = push(tail, slot, base, sy - minSection, base);
+            } else {
+                boolean above = sy >= minSection + sizeY;
+                int layer = above ? minSection + sizeY - 1 : minSection;
+                int dir = (above ? Direction.DOWN : Direction.UP).ordinal();
+                for (int ring = 0; ring <= distance; ring++) {
+                    for (int dx = -ring; dx <= ring; dx++) {
+                        for (int dz = -ring; dz <= ring; dz++) {
+                            if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) {
+                                continue;
+                            }
+                            int lx = base + dx;
+                            int lz = base + dz;
+                            int c = lz * size + lx;
+                            if (rangeTable[c] == 0 || layer < lo[c] || layer > hi[c]) {
+                                continue;
+                            }
+                            int slot = (wz[lz] * sizeY + layer - minSection) * sizeX + wx[lx];
+                            if ((st[slot] & FRAME_MASK) == mark) {
+                                continue;
+                            }
+                            st[slot] = mark | (1 << dir) << 6 | (1 << dir);
+                            tail = push(tail, slot, lx, layer - minSection, lz);
+                        }
+                    }
+                }
+            }
+            return propagate(0, tail, false);
+        }
+
+        // revisit: a found section that gains an entry direction is expanded again (its earlier expansion used fewer entries)
+        private int propagate(int head, int tail, boolean revisit) {
+            int now = frame;
+            int mark = now << FRAME_SHIFT;
+            int[] passed = rayMemo;
+            int size = side;
+            int base = distance + 1;
+            int[] st = state;
+            long[] masks = slotMasks;
+            long[] used = usedMasks;
+            short[] lo = wideLo;
+            short[] hi = wideHi;
+            int[] wx = wrapX;
+            int[] wz = wrapZ;
+            int sizeX = this.sizeX;
+            int sizeY = this.sizeY;
+            int minSection = this.minSection;
+            int camSx = sx;
+            int camSz = sz;
+            boolean cull = this.cull;
+            int centerX = (sx << 4) + 8;
+            int centerY = (sy << 4) + 8;
+            int centerZ = (sz << 4) + 8;
+            while (head < tail) {
+                int packed = queue[head];
+                int cur = slots[head++];
+                int lx = packed & 0xFF;
+                int lz = (packed >>> 8) & 0xFF;
+                int gy = (packed >>> 16) & 0x3FFF;
+                int bits = st[cur];
+                int moved = (bits >>> 6) & 63;
+                int from = bits & 63;
+                long mask = cull && from != 0 ? masks[cur] : -1L;
+                used[cur] = mask;
+                int entries = ENTRY_FACES[from];
+                int ox = (camSx + lx - base) << 4;
+                int oy = (gy + minSection) << 4;
+                int oz = (camSz + lz - base) << 4;
+                boolean far = cull && (Math.abs(ox - centerX) > 60 || Math.abs(oy - centerY) > 60 || Math.abs(oz - centerZ) > 60);
+                for (int d = 0; d < 6; d++) {
+                    if (cull && (moved & (1 << OPPOSITE[d])) != 0) {
+                        continue;
+                    }
+                    if (mask != -1L && ((mask >>> (d * 6)) & entries) == 0) {
+                        continue;
+                    }
+                    int nx = lx + DX[d];
+                    int nz = lz + DZ[d];
+                    int ngy = gy + DY[d];
+                    int c = nz * size + nx;
+                    int ny = ngy + minSection;
+                    if (ny < lo[c] || ny > hi[c]) {
+                        continue;
+                    }
+                    int slot = (wz[nz] * sizeY + ngy) * sizeX + wx[nx];
+                    int seen = st[slot];
+                    boolean visited = (seen & FRAME_MASK) == mark;
+                    if (visited && (seen & (REJECTED | 1 << d)) != 0) {
+                        continue;
+                    }
+                    if (far) {
+                        int axis = d >> 1;
+                        int memo = passed[slot];
+                        if (memo >>> 3 != now || (memo >>> axis & 1) == 0) {
+                            if (!lineOfSight(d, ox + (DX[d] << 4), oy + (DY[d] << 4), oz + (DZ[d] << 4), centerX, centerY, centerZ, mark)) {
+                                continue;
+                            }
+                            passed[slot] = (memo >>> 3 == now ? memo : now << 3) | 1 << axis;
+                        }
+                    }
+                    if (visited) {
+                        st[slot] = seen | (1 << d);
+                        if (revisit) {
+                            tail = pushRevisit(tail, slot);
+                        }
+                        continue;
+                    }
+                    // vanilla hasAllNeighbors(): side chunks only matter beyond 24 blocks
+                    if (!neighbors[c]) {
+                        double ddx = ((camSx + nx - base) << 4) + 8 - camX;
+                        double ddy = (ny << 4) + 8 - camY;
+                        double ddz = ((camSz + nz - base) << 4) + 8 - camZ;
+                        if (ddx * ddx + ddy * ddy + ddz * ddz > 576.0) {
+                            st[slot] = mark | REJECTED;
+                            continue;
+                        }
+                    }
+                    st[slot] = mark | (moved | (1 << d)) << 6 | (1 << d);
+                    tail = push(tail, slot, nx, ngy, nz);
+                }
+            }
+            return tail;
+        }
+
+        // Chunks arrived or left since this search: columns whose four side chunks are now all loaded drop their
+        // rejections, and found sections next to them are expanded again. Lost chunks only leave extra sections.
+        void loadChunks(Object chunkSource, int chunks) {
+            var source = (net.minecraft.client.multiplayer.ClientChunkCache) chunkSource;
+            int size = side;
+            int base = distance + 1;
+            boolean[] wasLoaded = loaded;
+            boolean[] hadNeighbors = neighbors;
+            for (int lz = 0; lz < size; lz++) {
+                for (int lx = 0; lx < size; lx++) {
+                    wasLoaded[lz * size + lx] = source != null && source.hasChunk(sx + lx - base, sz + lz - base);
+                }
+            }
+            loadedChunks = chunks;
+            int[] st = state;
+            int mark = frame << FRAME_SHIFT;
+            int[] wx = wrapX;
+            int[] wz = wrapZ;
+            boolean any = false;
+            boolean[] opened = openedColumns.length < size * size ? (openedColumns = new boolean[size * size]) : openedColumns;
+            Arrays.fill(opened, 0, size * size, false);
+            for (int lz = 1; lz < size - 1; lz++) {
+                for (int lx = 1; lx < size - 1; lx++) {
+                    int c = lz * size + lx;
+                    if (rangeTable[c] == 0) {
+                        continue;
+                    }
+                    boolean now = wasLoaded[c - 1] && wasLoaded[c + 1] && wasLoaded[c - size] && wasLoaded[c + size];
+                    if (now && !hadNeighbors[c]) {
+                        opened[c] = true;
+                        any = true;
+                        for (int gy = 0; gy < sizeY; gy++) {
+                            int slot = (wz[lz] * sizeY + gy) * sizeX + wx[lx];
+                            if ((st[slot] & FRAME_MASK) == mark && (st[slot] & REJECTED) != 0) {
+                                st[slot] = 0;
+                            }
+                        }
+                    }
+                    hadNeighbors[c] = now;
+                }
+            }
+            if (!any) {
+                return;
+            }
+            int[] packedQueue = queue;
+            int[] slotQueue = slots;
+            synchronized (GAINED_LOCK) {
+                for (int i = 0; i < count; i++) {
+                    int packed = packedQueue[i];
+                    int c = (packed >>> 8 & 0xFF) * size + (packed & 0xFF);
+                    if (opened[c - 1] || opened[c + 1] || opened[c - size] || opened[c + size]) {
+                        addGained(slotQueue[i]);
+                    }
+                }
+            }
+        }
+
+        // Like vanilla's partial update: sections that gained connections are expanded again on top of this result.
+        void extend() {
+            int start = count;
+            int tail = start;
+            synchronized (GAINED_LOCK) {
+                for (int i = 0; i < gainedCount; i++) {
+                    int slot = gained[i];
+                    if (tail == queue.length) {
+                        queue = Arrays.copyOf(queue, tail * 2);
+                        slots = Arrays.copyOf(slots, tail * 2);
+                    }
+                    queue[tail] = packedOf[slot] | REVISIT;
+                    slots[tail++] = slot;
+                }
+                gainedCount = 0;
+            }
+            if (tail == start) {
+                return;
+            }
+            tail = propagate(start, tail, true);
+            int[] packedQueue = queue;
+            int[] slotQueue = slots;
+            int total = start;
+            for (int i = start; i < tail; i++) {
+                if ((packedQueue[i] & REVISIT) == 0) {
+                    packedQueue[total] = packedQueue[i];
+                    slotQueue[total++] = slotQueue[i];
+                }
+            }
+            if (ids.length < total) {
+                ids = Arrays.copyOf(ids, Math.max(total, ids.length * 2));
+            }
+            for (int i = start; i < total; i++) {
+                ids[i] = grid[slotQueue[i]];
+            }
+            count = total;
+        }
+
+        // Vanilla's far-section rule: walking from the neighbour towards the camera must only cross sections already reached.
+        private boolean lineOfSight(int d, int nx, int ny, int nz, int centerX, int centerY, int centerZ, int mark) {
+            boolean axisX = d >= 4;
+            boolean axisY = d < 2;
+            boolean axisZ = !axisX && !axisY;
+            double vx = nx + ((axisX ? centerX > nx : centerX < nx) ? 16 : 0);
+            double vy = ny + ((axisY ? centerY > ny : centerY < ny) ? 16 : 0);
+            double vz = nz + ((axisZ ? centerZ > nz : centerZ < nz) ? 16 : 0);
+            double dx = camX - vx;
+            double dy = camY - vy;
+            double dz = camZ - vz;
+            double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (length < 1.0E-4) {
+                return true;
+            }
+            double scale = CEILED_SECTION_DIAGONAL / length;
+            double stepX = dx * scale;
+            double stepY = dy * scale;
+            double stepZ = dz * scale;
+            double minY = minSection << 4;
+            double maxY = (minSection + sizeY) << 4;
+            int size = side;
+            int base = distance + 1;
+            int[] st = state;
+            int[] wx = wrapX;
+            int[] wz = wrapZ;
+            while (dx * dx + dy * dy + dz * dz > 3600.0) {
+                vx += stepX;
+                vy += stepY;
+                vz += stepZ;
+                dx = camX - vx;
+                dy = camY - vy;
+                dz = camZ - vz;
+                if (vy > maxY || vy < minY) {
+                    return true;
+                }
+                int lx = ((int) Math.floor(vx) >> 4) - sx + base;
+                int lz = ((int) Math.floor(vz) >> 4) - sz + base;
+                int gy = ((int) Math.floor(vy) >> 4) - minSection;
+                if (lx < 0 || lz < 0 || lx >= size || lz >= size || gy < 0 || gy >= sizeY) {
+                    return false;
+                }
+                int bits = st[(wz[lz] * sizeY + gy) * sizeX + wx[lx]];
+                if ((bits & FRAME_MASK) != mark || (bits & REJECTED) != 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private int pushRevisit(int tail, int slot) {
+            if (tail == queue.length) {
+                queue = Arrays.copyOf(queue, tail * 2);
+                slots = Arrays.copyOf(slots, tail * 2);
+            }
+            queue[tail] = packedOf[slot] | REVISIT;
+            slots[tail] = slot;
+            return tail + 1;
+        }
+
+        private int push(int tail, int slot, int lx, int gy, int lz) {
+            if (tail == queue.length) {
+                queue = Arrays.copyOf(queue, tail * 2);
+                slots = Arrays.copyOf(slots, tail * 2);
+            }
+            int packed = lx | lz << 8 | gy << 16;
+            queue[tail] = packed;
+            slots[tail] = slot;
+            packedOf[slot] = packed;
+            return tail + 1;
+        }
     }
 }

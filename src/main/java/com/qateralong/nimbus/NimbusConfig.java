@@ -66,6 +66,9 @@ public final class NimbusConfig {
     public boolean gpuFrustum = true;
     public boolean signTextCache = true;
     public boolean guiItemBatching = true;
+    public boolean itemIconCache = true;
+    public boolean hudCache = true;
+    public int hudFps = 60;
     public boolean sectionLightCache = true;
     public boolean entityLightCache = true;
     public boolean entityGrouping = true;

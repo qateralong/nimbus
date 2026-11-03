@@ -34,6 +34,9 @@ public abstract class GuiItemBatchMixin {
     @Unique
     private boolean nimbus$lit;
 
+    @Unique
+    private boolean nimbus$icon;
+
     @Shadow
     public abstract void flush();
 
@@ -57,6 +60,11 @@ public abstract class GuiItemBatchMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/ItemRenderer;render(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;ZLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;IILnet/minecraft/client/resources/model/BakedModel;)V"))
     private void nimbus$render(ItemRenderer renderer, ItemStack stack, ItemDisplayContext context, boolean left, PoseStack pose, MultiBufferSource buffers,
                                int light, int overlay, BakedModel model, Operation<Void> original) {
+        if (com.qateralong.nimbus.render.ItemIcons.draw(stack, model, pose)) {
+            this.nimbus$nextFlat = false;
+            this.nimbus$icon = true;
+            return;
+        }
         if (nimbus$enabled()) {
             boolean flat = this.nimbus$nextFlat;
             this.nimbus$nextFlat = false;
@@ -73,6 +81,10 @@ public abstract class GuiItemBatchMixin {
     @WrapOperation(method = "renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;IIII)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;flush()V"))
     private void nimbus$skipFlush(GuiGraphics graphics, Operation<Void> original) {
+        if (this.nimbus$icon) {
+            this.nimbus$icon = false;
+            return;
+        }
         if (!nimbus$enabled() || !this.nimbus$pending) {
             original.call(graphics);
         }
@@ -88,6 +100,7 @@ public abstract class GuiItemBatchMixin {
 
     @Inject(method = "flush", at = @At("HEAD"))
     private void nimbus$light(CallbackInfo ci) {
+        com.qateralong.nimbus.render.ItemIcons.drawPending();
         this.nimbus$lit = this.nimbus$pending && this.nimbus$pendingFlat;
         this.nimbus$pending = false;
         if (this.nimbus$lit) {

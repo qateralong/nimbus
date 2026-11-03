@@ -515,6 +515,31 @@ public final class Terrain {
         int translucent = layerIndex(layer);
         int resorted = 0;
         int budget = moved ? 48 : 15;
+        if (Traversal.enabled() && Visibility.allCount == visible.size() && translucent >= 0) {
+            // own traversal: walk the id arrays and skip sections without translucent geometry
+            int[] ids = Visibility.allIds;
+            SectionRenderDispatcher.RenderSection[] sections = Visibility.allSections;
+            int[] masks = SectionData.mask;
+            boolean[] flat = SectionData.flatTranslucent;
+            int[] origins = Origins.values();
+            for (int i = 0, count = Visibility.allCount; i < count; i++) {
+                int id = ids[i];
+                if (id < 0 || id >= masks.length || (masks[id] >>> translucent & 1) == 0 || id < flat.length && flat[id] || id * 4 + 2 >= origins.length) {
+                    continue;
+                }
+                int ox = origins[id * 4] >> 4;
+                int oy = origins[id * 4 + 1] >> 4;
+                int oz = origins[id * 4 + 2] >> 4;
+                boolean near = Math.abs(ox - sx) <= 1 && Math.abs(oy - sy) <= 1 && Math.abs(oz - sz) <= 1;
+                if (!near && (resorted >= budget || !(moved || ox == sx || oy == sy || oz == sz))) {
+                    continue;
+                }
+                if (sort(sections[i], translucent, layer, dispatcher, x, y, z) && !near) {
+                    resorted++;
+                }
+            }
+            return;
+        }
         for (SectionRenderDispatcher.RenderSection section : visible) {
             net.minecraft.core.BlockPos origin = section.getOrigin();
             int ox = SectionPos.blockToSectionCoord(origin.getX());

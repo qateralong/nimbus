@@ -12,6 +12,7 @@ public abstract class KeyboardMixin {
     @Inject(method = {"keyPress", "charTyped"}, at = @At("HEAD"))
     private void nimbus$input(CallbackInfo ci) {
         Idle.input();
+        com.qateralong.nimbus.render.HudCache.invalidate();
     }
 
     @Inject(method = "keyPress", at = @At("HEAD"))

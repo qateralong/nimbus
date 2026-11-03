@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class BatchDrawMixin {
     @Inject(method = "endBatch(Lnet/minecraft/client/renderer/RenderType;Lcom/mojang/blaze3d/vertex/BufferBuilder;)V", at = @At("HEAD"))
     private void nimbus$drawStart(RenderType type, BufferBuilder builder, CallbackInfo ci) {
+        com.qateralong.nimbus.render.ItemIcons.drawPending();
         GuiBatch.drawStart();
         if (GuiBatch.itemsPending() && !this.fixedBuffers.containsKey(type)
                 && (Object) this == net.minecraft.client.Minecraft.getInstance().renderBuffers().bufferSource()) {
