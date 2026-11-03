@@ -33,6 +33,7 @@ public final class SectionData {
     public static long[] visibility = new long[4096];
     public static volatile int graph;
     public static volatile int changed;
+    public static volatile int gains;
     public static int[] slotOf = filled(4096);
     public static int[] visibleFrame = new int[4096];
     public static int[] prefetchFrame = new int[4096];
@@ -61,6 +62,9 @@ public final class SectionData {
             // gains are expanded by the traversal right away, only lost connections need the lazy full search
             if ((old & ~mask) != 0L) {
                 changed++;
+            }
+            if ((mask & ~old) != 0L) {
+                gains++;
             }
             if (Traversal.onMask(id, mask)) {
                 graph++;

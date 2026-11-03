@@ -108,6 +108,9 @@ public final class Traversal {
     private static int keyChanged;
     private static int framesCached;
     private static final int LAZY_FRAMES = 20;
+    // partial expansion is approximate like vanilla's, so a full search re-converges now and then after gains
+    private static final int GAIN_REFRESH_FRAMES = 120;
+    private static int keyGains;
     private static int keyMoves;
     private static int keyChunks;
     private static int keyDistance;
@@ -165,12 +168,14 @@ public final class Traversal {
         int chunks = source == null ? -1 : source.getLoadedChunksCount();
         int graph = SectionData.graph;
         int changed = SectionData.changed;
+        int gains = SectionData.gains;
         framesCached++;
         int moves = Origins.moves;
 
         rays(matrix);
         boolean steady = cached && Visibility.valid && camSx == keySx && camSy == keySy && camSz == keySz
-                && moves == keyMoves && (changed == keyChanged || framesCached < LAZY_FRAMES) && distance == keyDistance && cull == keyCull
+                && moves == keyMoves && (changed == keyChanged || framesCached < LAZY_FRAMES)
+                && (gains == keyGains || framesCached < GAIN_REFRESH_FRAMES) && distance == keyDistance && cull == keyCull
                 && contains(wide, MARGIN, frustum.camX - originX, frustum.camY - originY, frustum.camZ - originZ);
         boolean valid = steady && chunks == keyChunks;
         boolean grew = false;
@@ -196,6 +201,7 @@ public final class Traversal {
             originZ = frustum.camZ;
             graph = SectionData.graph;
             changed = SectionData.changed;
+            gains = SectionData.gains;
             prepareColumns(source, chunks, camSx, camSy, camSz, distance, minSection, sizeX, sizeY, sizeZ);
             cachedCount = search(sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
             if (cachedIds.length < cachedCount) {
@@ -211,6 +217,7 @@ public final class Traversal {
             keySz = camSz;
             keyGraph = graph;
             keyChanged = changed;
+            keyGains = gains;
             framesCached = 0;
             keyMoves = moves;
             keyChunks = chunks;
@@ -471,10 +478,12 @@ public final class Traversal {
                 }
             }
         }
-        return propagate(0, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+        return propagate(0, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull, false);
     }
 
-    private static int propagate(int head, int tail, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull) {
+    // revisit: a found section that gains an entry direction is expanded again (its earlier expansion used fewer entries)
+    private static int propagate(int head, int tail, int sizeX, int sizeY, int minSection, int distance, int camSx, int camSy, int camSz, boolean cull,
+                                 boolean revisit) {
         int now = frame;
         int mark = now << FRAME_SHIFT;
         int[] passed = rayMemo;
@@ -543,6 +552,9 @@ public final class Traversal {
                 }
                 if (visited) {
                     st[slot] = seen | (1 << d);
+                    if (revisit) {
+                        tail = pushRevisit(tail, slot);
+                    }
                     continue;
                 }
                 // vanilla hasAllNeighbors(): side chunks only matter beyond 24 blocks
@@ -643,7 +655,7 @@ public final class Traversal {
         if (tail == start) {
             return;
         }
-        tail = propagate(start, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull);
+        tail = propagate(start, tail, sizeX, sizeY, minSection, distance, camSx, camSy, camSz, cull, true);
         int[] packedQueue = queue;
         int[] slotQueue = slots;
         int count = start;
@@ -812,6 +824,16 @@ public final class Traversal {
 
     private static int[] grow(int[] array, int index) {
         return index < array.length ? array : Arrays.copyOf(array, array.length * 2);
+    }
+
+    private static int pushRevisit(int tail, int slot) {
+        if (tail == queue.length) {
+            queue = Arrays.copyOf(queue, tail * 2);
+            slots = Arrays.copyOf(slots, tail * 2);
+        }
+        queue[tail] = packedOf[slot] | REVISIT;
+        slots[tail] = slot;
+        return tail + 1;
     }
 
     private static int push(int tail, int slot, int lx, int gy, int lz) {
