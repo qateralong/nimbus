@@ -120,7 +120,7 @@ public abstract class BlockTesselateMixin {
      * @reason two small arrays per quad; also marks animated sprites seen on the render thread
      */
     @Overwrite
-    private void putQuadData(BlockAndTintGetter level, BlockState state, BlockPos pos, VertexConsumer consumer, PoseStack.Pose pose, BakedQuad quad,
+    public void putQuadData(BlockAndTintGetter level, BlockState state, BlockPos pos, VertexConsumer consumer, PoseStack.Pose pose, BakedQuad quad,
                              float b0, float b1, float b2, float b3, int l0, int l1, int l2, int l3, int overlay) {
         if (AnimatedSprites.enabled && RenderSystem.isOnRenderThread()) {
             AnimatedSprites.mark(quad.getSprite());

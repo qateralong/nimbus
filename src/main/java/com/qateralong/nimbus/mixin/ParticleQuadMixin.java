@@ -54,7 +54,7 @@ public abstract class ParticleQuadMixin extends Particle {
      * @reason the four corners go into the buffer in one write when it is a plain particle builder
      */
     @Overwrite
-    protected void renderRotatedQuad(VertexConsumer consumer, Quaternionf rotation, float x, float y, float z, float partialTicks) {
+    public void renderRotatedQuad(VertexConsumer consumer, Quaternionf rotation, float x, float y, float z, float partialTicks) {
         float size = this.getQuadSize(partialTicks);
         float u0 = this.getU0();
         float u1 = this.getU1();

@@ -66,7 +66,7 @@ public abstract class ModelPartMixin {
      * @reason no iterator allocation per drawn part
      */
     @Overwrite
-    private void compile(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color) {
+    public void compile(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color) {
         List<ModelPart.Cube> cubes = this.cubes;
         if (cubes instanceof java.util.RandomAccess) {
             for (int i = 0, n = cubes.size(); i < n; i++) {

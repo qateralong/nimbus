@@ -40,7 +40,7 @@ public abstract class SectionCompilerMixin {
      * @reason called for every block while meshing; packed builders when our mesher is on, no callback allocation
      */
     @org.spongepowered.asm.mixin.Overwrite
-    private BufferBuilder getOrBeginLayer(Map<RenderType, BufferBuilder> builders, SectionBufferBuilderPack pack, RenderType layer) {
+    public BufferBuilder getOrBeginLayer(Map<RenderType, BufferBuilder> builders, SectionBufferBuilderPack pack, RenderType layer) {
         BufferBuilder builder = builders.get(layer);
         if (builder == null) {
             builder = Terrain.meshing() ? new PackedBuilder(pack.buffer(layer), layer == RenderType.translucent())
