@@ -273,7 +273,7 @@
   "nimbus.group.optimizations": "Optimizations",
   "nimbus.option.preset": "Sacrifices",
   "nimbus.engine.fallback": "Nimbus: own engine is off",
-  "nimbus.engine.no_gl46": "OpenGL 4.6 is required, the vanilla renderer draws the world",
+  "nimbus.engine.no_gl43": "The GPU lacks the needed OpenGL 4.3 features, the world is drawn by the vanilla renderer",
   "nimbus.engine.failed": "The engine failed to start, the vanilla renderer draws the world. See the log",
   "nimbus.option.own_traversal": "Own visible section search",
   "nimbus.option.own_traversal.tip": "Section search with a view margin instead of the vanilla background graph. Reruns only when the camera leaves the margin or sections change.",

@@ -118,12 +118,24 @@ public final class Terrain {
             return;
         }
         try {
-            if (!GL.getCapabilities().OpenGL46 || !Stream.available()) {
-                Nimbus.LOGGER.info("Nimbus terrain renderer needs OpenGL 4.6, using vanilla");
+            // NVIDIA reports the requested 3.2 context version and exposes the rest as extensions, so check features
+            org.lwjgl.opengl.GLCapabilities caps = GL.getCapabilities();
+            String gpu = GL11.glGetString(GL11.GL_RENDERER) + ", OpenGL " + GL11.glGetString(GL11.GL_VERSION);
+            boolean features = caps.OpenGL43 || (caps.GL_ARB_shader_storage_buffer_object && caps.GL_ARB_multi_draw_indirect
+                    && caps.GL_ARB_vertex_attrib_binding && caps.GL_ARB_base_instance);
+            if (!features || !(caps.OpenGL44 || caps.GL_ARB_buffer_storage)) {
+                Nimbus.LOGGER.info("Nimbus terrain renderer needs OpenGL 4.3 features and buffer storage ({}), using vanilla", gpu);
                 failed = true;
-                notifyFallback("nimbus.engine.no_gl46");
+                notifyFallback("nimbus.engine.no_gl43");
                 return;
             }
+            if (!Stream.available()) {
+                Nimbus.LOGGER.info("Nimbus terrain renderer: no persistent stream buffer ({}), using vanilla", gpu);
+                failed = true;
+                notifyFallback("nimbus.engine.failed");
+                return;
+            }
+            Nimbus.LOGGER.info("Nimbus terrain renderer on {}", gpu);
             Arena.maxPages = Math.max(1, Math.min(Arena.LIMIT, Math.min(GL11.glGetInteger(GL43.GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS),
                     GL11.glGetInteger(GL43.GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS))));
             program = new TerrainProgram(false);

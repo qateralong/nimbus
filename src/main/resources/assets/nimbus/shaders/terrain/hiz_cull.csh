@@ -1,4 +1,4 @@
-#version 460 core
+#version 430 core
 
 // Mode: 0 select last visible, 1 test opaque (draw newly visible), 2 test translucent, 3 no pyramid.
 
