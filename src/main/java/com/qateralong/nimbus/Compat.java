@@ -6,7 +6,10 @@ import java.lang.invoke.MethodType;
 import net.fabricmc.loader.api.FabricLoader;
 
 public final class Compat {
-    private static final boolean IRIS = FabricLoader.getInstance().isModLoaded("iris");
+    public static final boolean IRIS = FabricLoader.getInstance().isModLoaded("iris");
+    // mods that animate scrolling in chat and screens; Nimbus' GUI batching and caches stay out of their way
+    public static final boolean SMOOTH_GUI = java.util.stream.Stream.of("smoothscroll", "smoothscrolling", "smooth_scrolling", "smoothscrollingeverywhere",
+            "smooth-scrolling-everywhere", "smoothgui", "smooth_gui", "smoothchat").anyMatch(FabricLoader.getInstance()::isModLoaded);
     private static final MethodHandle SHADOW_PASS = irisHandle("isRenderingShadowPass");
     private static final MethodHandle SHADERS = irisHandle("isShaderPackInUse");
 

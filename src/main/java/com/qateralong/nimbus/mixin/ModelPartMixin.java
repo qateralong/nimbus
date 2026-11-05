@@ -13,7 +13,20 @@ import org.spongepowered.asm.mixin.Unique;
 
 // Same traversal as vanilla, with indexed loops instead of an iterator over children and cubes for every part drawn.
 @Mixin(value = ModelPart.class, priority = 900)
-public abstract class ModelPartMixin {
+public abstract class ModelPartMixin implements com.qateralong.nimbus.render.EntityInstances.Mesh {
+    @Unique
+    private int nimbus$mesh;
+
+    @Override
+    public int nimbus$mesh() {
+        return this.nimbus$mesh;
+    }
+
+    @Override
+    public void nimbus$setMesh(int mesh) {
+        this.nimbus$mesh = mesh;
+    }
+
     @Unique
     private static final ModelPart[] NIMBUS_NONE = new ModelPart[0];
 
@@ -68,6 +81,10 @@ public abstract class ModelPartMixin {
     @Overwrite
     public void compile(PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay, int color) {
         List<ModelPart.Cube> cubes = this.cubes;
+        if (!cubes.isEmpty() && com.qateralong.nimbus.render.EntityInstances.capture(consumer, (net.minecraft.client.model.geom.ModelPart) (Object) this, cubes, pose,
+                light, overlay, color)) {
+            return;
+        }
         if (cubes instanceof java.util.RandomAccess) {
             for (int i = 0, n = cubes.size(); i < n; i++) {
                 cubes.get(i).compile(pose, consumer, light, overlay, color);

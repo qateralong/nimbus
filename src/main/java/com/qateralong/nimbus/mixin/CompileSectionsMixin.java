@@ -84,6 +84,15 @@ public abstract class CompileSectionsMixin {
                 lost++;
             }
         }
+        int repaired = this.nimbus$repair();
+        if (repaired > 0) {
+            com.qateralong.nimbus.render.SectionData.repaired += repaired;
+            long now = System.currentTimeMillis();
+            if (now - this.nimbus$repairLogged > 10_000L) {
+                this.nimbus$repairLogged = now;
+                Nimbus.LOGGER.warn("Nimbus: {} sections with lost geometry rebuilt ({} total)", repaired, com.qateralong.nimbus.render.SectionData.repaired);
+            }
+        }
         if (lost > 0) {
             com.qateralong.nimbus.render.SectionData.recovered += lost;
             long now = System.currentTimeMillis();
@@ -92,6 +101,89 @@ public abstract class CompileSectionsMixin {
                 Nimbus.LOGGER.warn("Nimbus: {} lost section updates recovered ({} total)", lost, com.qateralong.nimbus.render.SectionData.recovered);
             }
         }
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private long nimbus$repairLogged;
+
+    @org.spongepowered.asm.mixin.Unique
+    private int nimbus$auditRound = 1;
+
+    @org.spongepowered.asm.mixin.Unique
+    private int[] nimbus$hold = new int[0];
+
+    @org.spongepowered.asm.mixin.Unique
+    private int[] nimbus$tries = new int[0];
+
+    // Safety net: a built section whose stored layers disagree with what vanilla compiled, with no upload on the way,
+    // is rebuilt once the mismatch survives two audits in a row.
+    @org.spongepowered.asm.mixin.Unique
+    private int nimbus$repair() {
+        if (!com.qateralong.nimbus.render.Terrain.active() || com.qateralong.nimbus.render.Terrain.storageFull()) {
+            return 0;
+        }
+        int round = ++this.nimbus$auditRound;
+        List<net.minecraft.client.renderer.RenderType> layers = net.minecraft.client.renderer.RenderType.chunkBufferLayers();
+        int repaired = 0;
+        for (int i = 0, size = this.visibleSections.size(); i < size; i++) {
+            SectionRenderDispatcher.RenderSection section = this.visibleSections.get(i);
+            if (section.isDirty()) {
+                continue;
+            }
+            SectionRenderDispatcher.CompiledSection compiled = section.getCompiled();
+            if (compiled == SectionRenderDispatcher.CompiledSection.UNCOMPILED) {
+                continue;
+            }
+            com.qateralong.nimbus.render.TerrainSlot[] slots = ((SectionStamp) section).nimbus$slots();
+            boolean wrong = false;
+            for (int l = 0; l < slots.length && l < layers.size(); l++) {
+                com.qateralong.nimbus.render.TerrainSlot slot = slots[l];
+                if (slot == null) {
+                    continue;
+                }
+                if (slot.nimbus$pending(0) > 0) {
+                    wrong = false;
+                    break;
+                }
+                if (compiled.isEmpty(layers.get(l)) == slot.nimbus$count() > 0) {
+                    wrong = true;
+                }
+            }
+            int id = ((SectionStamp) section).nimbus$id();
+            int[] suspect = com.qateralong.nimbus.render.SectionData.suspect;
+            if (id >= suspect.length) {
+                if (!wrong) {
+                    continue;
+                }
+                suspect = com.qateralong.nimbus.render.SectionData.suspect = java.util.Arrays.copyOf(suspect, Math.max(id + 1, suspect.length * 2));
+            }
+            int[] hold = this.nimbus$hold;
+            if (id >= hold.length) {
+                hold = this.nimbus$hold = java.util.Arrays.copyOf(hold, Math.max(id + 1, hold.length * 2 + 1024));
+                this.nimbus$tries = java.util.Arrays.copyOf(this.nimbus$tries, hold.length);
+            }
+            if (!wrong) {
+                suspect[id] = 0;
+                if (hold[id] != 0 && round > hold[id]) {
+                    this.nimbus$tries[id] = 0;
+                    hold[id] = 0;
+                }
+            } else if (round < hold[id]) {
+                continue;
+            } else if (suspect[id] == round - 1) {
+                // a section that loses its layer again after a rebuild waits longer each time
+                int tries = Math.min(++this.nimbus$tries[id], 8);
+                hold[id] = round + (1 << tries);
+                suspect[id] = 0;
+                com.qateralong.nimbus.render.SectionEvents.add(id, com.qateralong.nimbus.render.SectionEvents.REPAIR, 0, 0);
+                section.setDirty(false);
+                com.qateralong.nimbus.render.SlowFrames.repairs++;
+                repaired++;
+            } else {
+                suspect[id] = round;
+            }
+        }
+        return repaired;
     }
 
     @Inject(method = "compileSections", at = @At("HEAD"), cancellable = true)
@@ -193,6 +285,7 @@ public abstract class CompileSectionsMixin {
             if (sync) {
                 profiler.push("build_near_sync");
                 this.sectionRenderDispatcher.rebuildSectionSync(section, cache);
+                com.qateralong.nimbus.render.SlowFrames.syncBuilds++;
                 section.setNotDirty();
                 forced = true;
                 profiler.pop();
@@ -231,6 +324,7 @@ public abstract class CompileSectionsMixin {
         for (Runnable task; (forced || uploaded < MIN_UPLOADS || System.nanoTime() < deadline) && (task = uploads.poll()) != null; uploaded++) {
             task.run();
         }
+        com.qateralong.nimbus.render.SlowFrames.uploads += uploaded;
         profiler.popPush("schedule_async_compile");
         // Short queue re-picked every frame: vanilla snapshots blocks at scheduling time and sorts by stale distance.
         int free = this.sectionRenderDispatcher.getFreeBufferCount();
@@ -246,6 +340,7 @@ public abstract class CompileSectionsMixin {
                     continue;
                 }
                 section.rebuildSectionAsync(this.sectionRenderDispatcher, cache);
+                com.qateralong.nimbus.render.SlowFrames.asyncBuilds++;
                 section.setNotDirty();
                 async.set(i, null);
                 scheduled++;

@@ -20,6 +20,7 @@ public final class EntityBatch {
     private static final Reference2ObjectOpenHashMap<RenderType, BufferBuilder> builders = new Reference2ObjectOpenHashMap<>();
     private static final Reference2ObjectOpenHashMap<RenderType, ByteBufferBuilder> buffers = new Reference2ObjectOpenHashMap<>();
     private static final ObjectArrayList<RenderType> order = new ObjectArrayList<>();
+    private static final Reference2ObjectOpenHashMap<BufferBuilder, RenderType> types = new Reference2ObjectOpenHashMap<>();
     private static final ObjectArrayList<ByteBufferBuilder> pool = new ObjectArrayList<>();
     private static final Reference2BooleanOpenHashMap<RenderType> opaque = new Reference2BooleanOpenHashMap<>();
     private static MultiBufferSource.BufferSource target;
@@ -53,6 +54,7 @@ public final class EntityBatch {
         builder = new BufferBuilder(buffer, type.mode(), type.format());
         builders.put(type, builder);
         buffers.put(type, buffer);
+        types.put(builder, type);
         order.add(type);
         return builder;
     }
@@ -83,13 +85,21 @@ public final class EntityBatch {
                 pool.add(buffer);
             }
             order.clear();
+            types.clear();
+            EntityInstances.discard();
             builders.clear();
             buffers.clear();
             flushing = false;
         }
     }
 
+    // the batch's own builder for this layer, while the batch is collecting
+    public static RenderType typeOf(Object consumer) {
+        return target == null || flushing || !(consumer instanceof BufferBuilder) ? null : types.get(consumer);
+    }
+
     private static void draw(RenderType type) {
+        EntityInstances.draw(type);
         MeshData mesh = builders.get(type).build();
         if (mesh == null) {
             return;

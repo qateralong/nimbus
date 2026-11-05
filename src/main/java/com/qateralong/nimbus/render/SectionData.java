@@ -94,6 +94,8 @@ public final class SectionData {
     private static final java.util.concurrent.ConcurrentLinkedQueue<Runnable> LATER = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private static boolean[] inList = new boolean[4096];
     public static int recovered;
+    public static int repaired;
+    public static int[] suspect = new int[0];
 
     // Vanilla marks sections dirty from build threads too (a cancelled build); the lists here are render-thread only.
     public static boolean later(Runnable task) {

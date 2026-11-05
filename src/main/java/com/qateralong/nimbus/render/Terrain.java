@@ -76,6 +76,10 @@ public final class Terrain {
     private static int benchFrames;
     private static Arena arena;
     private static boolean full;
+
+    public static boolean storageFull() {
+        return full;
+    }
     private static final int MAX_QUADS_PER_DRAW = 1 << 14;
     private static Commands[] LISTS = new Commands[0];
     private static int builtFrame = -1;
@@ -212,8 +216,12 @@ public final class Terrain {
             return uploadPacked(mesh, packed, buffer, queue);
         }
         if (!active() || !Packer.supported(mesh)) {
+            TerrainSlot target = (TerrainSlot) buffer;
+            SectionEvents.add(target.nimbus$section(), active() ? SectionEvents.UPLOAD_VANILLA : SectionEvents.UPLOAD_INACTIVE, target.nimbus$layer(),
+                    mesh.drawState().vertexCount() / 4);
             return null;
         }
+        SectionEvents.add(((TerrainSlot) buffer).nimbus$section(), SectionEvents.UPLOAD_PACKER, ((TerrainSlot) buffer).nimbus$layer(), mesh.drawState().vertexCount() / 4);
         int quads = mesh.drawState().vertexCount() / 4;
         long original;
         int[] order;
@@ -236,15 +244,20 @@ public final class Terrain {
         long data = original;
         Faces groups = faces;
         int[] animated = sprites;
-        return CompletableFuture.runAsync(() -> store(slot, data, quads, order, groups, animated), queue::add);
+        java.util.concurrent.atomic.AtomicBoolean cancelled = TASK.get();
+        slot.nimbus$pending(1);
+        return CompletableFuture.runAsync(() -> store(slot, data, quads, order, groups, animated, cancelled), queue::add);
     }
 
     private static CompletableFuture<Void> uploadPacked(MeshData mesh, Packed packed, VertexBuffer buffer, Queue<Runnable> queue) {
         int quads = mesh.drawState().vertexCount() / 4;
+        TerrainSlot target = (TerrainSlot) buffer;
         if (!active()) {
+            SectionEvents.add(target.nimbus$section(), SectionEvents.UPLOAD_INACTIVE, target.nimbus$layer(), quads);
             mesh.close();
             return CompletableFuture.completedFuture(null);
         }
+        SectionEvents.add(target.nimbus$section(), SectionEvents.UPLOAD_PACKED, target.nimbus$layer(), quads);
         long data;
         try {
             data = Arena.allocateCpu(Math.max(1, quads));
@@ -261,11 +274,31 @@ public final class Terrain {
             }
         }
         int[] sorted = order;
-        return CompletableFuture.runAsync(() -> store(slot, data, quads, sorted, packed.faces, packed.sprites), queue::add);
+        java.util.concurrent.atomic.AtomicBoolean cancelled = TASK.get();
+        slot.nimbus$pending(1);
+        return CompletableFuture.runAsync(() -> store(slot, data, quads, sorted, packed.faces, packed.sprites, cancelled), queue::add);
+    }
+
+    // cancel flag of the rebuild task running on this thread, so its uploads can be dropped once a newer task or a reset replaced it
+    public static final ThreadLocal<java.util.concurrent.atomic.AtomicBoolean> TASK = new ThreadLocal<>();
+
+    private static void store(TerrainSlot slot, long original, int quads, int[] order, Faces faces, int[] sprites,
+                              java.util.concurrent.atomic.AtomicBoolean cancelled) {
+        try {
+            if (cancelled != null && cancelled.get()) {
+                SectionEvents.add(slot.nimbus$section(), SectionEvents.DROPPED_CANCELLED, slot.nimbus$layer(), quads);
+                MemoryUtil.nmemFree(original);
+                return;
+            }
+            store(slot, original, quads, order, faces, sprites);
+        } finally {
+            slot.nimbus$pending(-1);
+        }
     }
 
     private static void store(TerrainSlot slot, long original, int quads, int[] order, Faces faces, int[] sprites) {
         if (((VertexBuffer) slot).isInvalid() || arena == null) {
+            SectionEvents.add(slot.nimbus$section(), SectionEvents.DROPPED_INVALID, slot.nimbus$layer(), quads);
             MemoryUtil.nmemFree(original);
             return;
         }
@@ -289,6 +322,7 @@ public final class Terrain {
         long data = Packer.arrange(original, quads, order);
         int start = arena.allocate(quads);
         if (start < 0) {
+            SectionEvents.add(slot.nimbus$section(), SectionEvents.DROPPED_FULL, slot.nimbus$layer(), quads);
             if (!full) {
                 full = true;
                 Nimbus.LOGGER.warn("Nimbus terrain storage is full ({} MB), some sections are skipped", (long) arena.capacityQuads() * Arena.QUAD_BYTES >> 20);
@@ -301,6 +335,7 @@ public final class Terrain {
         }
         arena.upload(start, data, quads);
         slot.nimbus$set(start, quads);
+        SectionEvents.add(slot.nimbus$section(), SectionEvents.STORED, slot.nimbus$layer(), quads);
         slot.nimbus$setFaces(faces);
         SectionData.set(slot.nimbus$section(), slot.nimbus$layer(), start, quads, faces, sprites);
         if (translucent && slot.nimbus$section() >= 0 && slot.nimbus$section() < SectionData.flatTranslucent.length) {
@@ -429,6 +464,7 @@ public final class Terrain {
         for (int i = 0; i < slots.length; i++) {
             TerrainSlot slot = slots[i];
             if (slot != null && slot.nimbus$count() > 0 && compiled.isEmpty(layers.get(i))) {
+                SectionEvents.add(slot.nimbus$section(), SectionEvents.RELEASED_COMPILED, i, slot.nimbus$count());
                 release(slot);
             }
         }

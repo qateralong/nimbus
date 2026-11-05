@@ -21,14 +21,23 @@ public final class AnimatedSprites {
     private AnimatedSprites() {
     }
 
+    // fire is also drawn on burning entities and over the screen, where nothing marks it as seen
+    private static final java.util.BitSet ALWAYS = new java.util.BitSet();
+
     public static void reset() {
         SPRITES.clear();
+        ALWAYS.clear();
         grid = null;
     }
 
     public static int register(TextureAtlasSprite sprite) {
         SPRITES.add(sprite);
-        return SPRITES.size() - 1;
+        int index = SPRITES.size() - 1;
+        String path = sprite.contents().name().getPath();
+        if (path.equals("block/fire_0") || path.equals("block/fire_1") || path.equals("block/soul_fire_0") || path.equals("block/soul_fire_1")) {
+            ALWAYS.set(index);
+        }
+        return index;
     }
 
     public static void built() {
@@ -260,6 +269,6 @@ public final class AnimatedSprites {
 
     public static boolean skip(int index) {
         int[] states = active;
-        return enabled && index >= 0 && index < states.length && states[index] < Nimbus.ticks - 1;
+        return enabled && index >= 0 && index < states.length && states[index] < Nimbus.ticks - 1 && !ALWAYS.get(index);
     }
 }

@@ -43,7 +43,7 @@ public abstract class GuiItemBatchMixin {
     @Unique
     private static boolean nimbus$enabled() {
         NimbusConfig config = NimbusConfig.get();
-        return config.enabled && config.guiItemBatching;
+        return config.enabled && config.guiItemBatching && !com.qateralong.nimbus.Compat.SMOOTH_GUI;
     }
 
     @WrapOperation(method = "renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;IIII)V",

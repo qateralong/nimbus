@@ -1,4 +1,4 @@
-package com.qateralong.nimbus.mixin;
+package com.qateralong.nimbus.common.mixin;
 
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;

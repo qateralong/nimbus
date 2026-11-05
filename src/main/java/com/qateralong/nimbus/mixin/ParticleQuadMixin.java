@@ -61,6 +61,12 @@ public abstract class ParticleQuadMixin extends Particle {
         float v0 = this.getV0();
         float v1 = this.getV1();
         int light = this.getLightColor(partialTicks);
+        if (com.qateralong.nimbus.render.ParticleInstances.accepts(consumer)) {
+            int abgr = ((int) (this.alpha * 255.0F) & 255) << 24 | ((int) (this.bCol * 255.0F) & 255) << 16
+                    | ((int) (this.gCol * 255.0F) & 255) << 8 | (int) (this.rCol * 255.0F) & 255;
+            com.qateralong.nimbus.render.ParticleInstances.add(rotation, x, y, z, size, u0, u1, v0, v1, abgr, light);
+            return;
+        }
         if (NIMBUS_LITTLE_ENDIAN && consumer instanceof FastVertices fast && com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()) {
             long p = fast.nimbus$reserve(DefaultVertexFormat.PARTICLE, 4);
             if (p != 0L) {

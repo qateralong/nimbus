@@ -12,7 +12,12 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(ModelPart.Cube.class)
-public abstract class ModelCubeMixin {
+public abstract class ModelCubeMixin implements com.qateralong.nimbus.render.EntityInstances.Cube {
+    @Override
+    public ModelPart.Polygon[] nimbus$polygons() {
+        return this.polygons;
+    }
+
     @Unique
     private static final float[] NIMBUS_SCRATCH = new float[3 * 64];
 

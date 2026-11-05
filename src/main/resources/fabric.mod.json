@@ -3,14 +3,17 @@
   "id": "nimbus",
   "version": "${version}",
   "name": "Nimbus",
-  "description": "Client optimization: per-type entity/block entity culling, async ray occlusion, far LOD, particle culling and per-type toggles, client tick LOD, world resolution scaling with CAS sharpening, adaptive quality, borderless fullscreen, CPU render-ahead limit, extended graphics settings with Sacrifice presets.",
+  "description": "Client and server optimization: per-type entity/block entity culling, async ray occlusion, far LOD, particle culling and per-type toggles, client tick LOD, world resolution scaling with CAS sharpening, adaptive quality, borderless fullscreen, CPU render-ahead limit, extended graphics settings with Sacrifice presets.",
   "authors": [
     "qateralong"
   ],
   "license": "All Rights Reserved",
   "icon": "assets/nimbus/icon.png",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
+    "main": [
+      "com.qateralong.nimbus.common.NimbusCommon"
+    ],
     "client": [
       "com.qateralong.nimbus.Nimbus"
     ],
@@ -22,7 +25,11 @@
     ]
   },
   "mixins": [
-    "nimbus.mixins.json"
+    {
+      "config": "nimbus.mixins.json",
+      "environment": "client"
+    },
+    "nimbus.common.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.16.0",

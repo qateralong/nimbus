@@ -89,7 +89,7 @@ public final class ItemIcons {
             return false;
         }
         NimbusConfig config = NimbusConfig.get();
-        if (!config.enabled || !config.itemIconCache) {
+        if (!config.enabled || !config.itemIconCache || com.qateralong.nimbus.Compat.SMOOTH_GUI) {
             return false;
         }
         Matrix4f m = pose.last().pose();

@@ -15,6 +15,7 @@ public abstract class WindowDisplayMixin {
         com.qateralong.nimbus.render.Stream.endFrame();
         com.qateralong.nimbus.render.Terrain.endFrame();
         com.qateralong.nimbus.Nimbus.frames++;
+        com.qateralong.nimbus.render.SlowFrames.endFrame();
         com.qateralong.nimbus.render.GuiBatch.endFrame();
         com.qateralong.nimbus.render.GpuTimer.endFrame();
     }

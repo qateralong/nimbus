@@ -1,4 +1,4 @@
-package com.qateralong.nimbus.mixin;
+package com.qateralong.nimbus.common.mixin;
 
 import net.minecraft.world.phys.shapes.DiscreteVoxelShape;
 import net.minecraft.world.phys.shapes.VoxelShape;

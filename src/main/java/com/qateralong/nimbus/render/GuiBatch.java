@@ -37,7 +37,7 @@ public final class GuiBatch {
 
     public static void begin() {
         NimbusConfig config = NimbusConfig.get();
-        if (config.enabled && config.guiBatching) {
+        if (config.enabled && config.guiBatching && !com.qateralong.nimbus.Compat.SMOOTH_GUI) {
             depth++;
         }
     }

@@ -68,6 +68,8 @@ public final class NimbusConfig {
     public boolean guiItemBatching = true;
     public boolean itemIconCache = true;
     public boolean hudCache = true;
+    public boolean lightEngine = true;
+    public boolean chunkDecode = true;
     public int hudFps = 60;
     public boolean sectionLightCache = true;
     public boolean entityLightCache = true;
@@ -75,6 +77,10 @@ public final class NimbusConfig {
     public boolean entityBatching = true;
     public boolean mapAtlas = true;
     public boolean particleLightCache = true;
+    public boolean particleInstancing = true;
+    public boolean entityInstancing = true;
+    public boolean lod = true;
+    public int lodDistance = 48;
     public boolean weatherCache = true;
     public boolean fluidCache = true;
     public boolean bedModels = true;

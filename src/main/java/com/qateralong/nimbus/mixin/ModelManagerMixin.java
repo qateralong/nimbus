@@ -18,5 +18,6 @@ public abstract class ModelManagerMixin {
     @Inject(method = "apply", at = @At("RETURN"))
     private void nimbus$end(CallbackInfo ci) {
         QuadDedup.end();
+        com.qateralong.nimbus.lod.LodColors.clear();
     }
 }

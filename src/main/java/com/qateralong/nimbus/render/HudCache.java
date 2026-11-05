@@ -62,7 +62,7 @@ public final class HudCache {
         long frame = now - lastFrame;
         lastFrame = now;
         long interval = 1_000_000_000L / Math.max(1, config.hudFps);
-        if (!config.enabled || !config.hudCache || broken || minecraft.options.hideGui || minecraft.screen != null || minecraft.player == null
+        if (!config.enabled || !config.hudCache || com.qateralong.nimbus.Compat.SMOOTH_GUI || broken || minecraft.options.hideGui || minecraft.screen != null || minecraft.player == null
                 || frame >= interval) {
             stale = true;
             original.run();

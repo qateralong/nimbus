@@ -32,6 +32,24 @@ public abstract class ParticleEngineMixin {
         return Cull.particleVisible(particle);
     }
 
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "render", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/particle/ParticleRenderType;begin(Lcom/mojang/blaze3d/vertex/Tesselator;Lnet/minecraft/client/renderer/texture/TextureManager;)Lcom/mojang/blaze3d/vertex/BufferBuilder;"))
+    private com.mojang.blaze3d.vertex.BufferBuilder nimbus$begin(ParticleRenderType type, com.mojang.blaze3d.vertex.Tesselator tesselator,
+                                                                 net.minecraft.client.renderer.texture.TextureManager textures,
+                                                                 com.llamalad7.mixinextras.injector.wrapoperation.Operation<com.mojang.blaze3d.vertex.BufferBuilder> original) {
+        com.mojang.blaze3d.vertex.BufferBuilder builder = original.call(type, tesselator, textures);
+        com.qateralong.nimbus.render.ParticleInstances.begin(type, builder);
+        return builder;
+    }
+
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "render", at = @At(value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/vertex/BufferBuilder;build()Lcom/mojang/blaze3d/vertex/MeshData;"))
+    private com.mojang.blaze3d.vertex.MeshData nimbus$flush(com.mojang.blaze3d.vertex.BufferBuilder builder,
+                                                            com.llamalad7.mixinextras.injector.wrapoperation.Operation<com.mojang.blaze3d.vertex.MeshData> original) {
+        com.qateralong.nimbus.render.ParticleInstances.flush();
+        return original.call(builder);
+    }
+
     @Inject(method = "add(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
     private void nimbus$limit(Particle particle, CallbackInfo ci) {
         if (!Cull.acceptParticle()) {

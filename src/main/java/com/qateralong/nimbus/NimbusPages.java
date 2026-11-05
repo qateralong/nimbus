@@ -115,6 +115,8 @@ public final class NimbusPages {
         toggle(world, "stars", c -> c.stars, (c, v) -> c.stars = v);
         toggle(world, "fog", c -> c.fog, (c, v) -> c.fog = v);
         world.add(slider("fog_distance", 10, 300, 10, c -> c.fogDistance, (c, v) -> c.fogDistance = v, "%"));
+        toggle(world, "lod", c -> c.lod, (c, v) -> c.lod = v);
+        world.add(slider("lod_distance", 16, 128, 8, c -> c.lodDistance, (c, v) -> c.lodDistance = v, ""));
         toggle(world, "weather", c -> c.weather, (c, v) -> c.weather = v);
         world.add(slider("cloud_height", 0, 320, 8, c -> c.cloudHeight, (c, v) -> c.cloudHeight = v, "blocks"));
         OptionGroup effects = group(quality, "effects");
@@ -224,6 +226,8 @@ public final class NimbusPages {
         toggle(optimizations, "gui_batching", c -> c.guiBatching, (c, v) -> c.guiBatching = v);
         toggle(optimizations, "item_icon_cache", c -> c.itemIconCache, (c, v) -> c.itemIconCache = v);
         toggle(optimizations, "hud_cache", c -> c.hudCache, (c, v) -> c.hudCache = v);
+        toggle(optimizations, "light_engine", c -> c.lightEngine, (c, v) -> c.lightEngine = v);
+        toggle(optimizations, "chunk_decode", c -> c.chunkDecode, (c, v) -> c.chunkDecode = v);
         optimizations.add(slider("hud_fps", 20, 144, 4, c -> c.hudFps, (c, v) -> c.hudFps = v, "fps"));
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("sodium")) {
             toggle(optimizations, "sodium_graph_cache", c -> c.sodiumGraphCache, (c, v) -> c.sodiumGraphCache = v);
@@ -236,6 +240,8 @@ public final class NimbusPages {
         toggle(optimizations, "entity_batching", c -> c.entityBatching, (c, v) -> c.entityBatching = v);
         toggle(optimizations, "map_atlas", c -> c.mapAtlas, (c, v) -> c.mapAtlas = v);
         toggle(optimizations, "particle_light_cache", c -> c.particleLightCache, (c, v) -> c.particleLightCache = v);
+        toggle(optimizations, "particle_instancing", c -> c.particleInstancing, (c, v) -> c.particleInstancing = v);
+        toggle(optimizations, "entity_instancing", c -> c.entityInstancing, (c, v) -> c.entityInstancing = v);
         toggle(optimizations, "weather_cache", c -> c.weatherCache, (c, v) -> c.weatherCache = v);
         toggle(optimizations, "fluid_cache", c -> c.fluidCache, (c, v) -> c.fluidCache = v);
         if (Terrain.supported()) {

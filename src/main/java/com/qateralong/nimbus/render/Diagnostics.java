@@ -27,9 +27,11 @@ public final class Diagnostics {
         }
         line(out, "visibility valid %s, stamp %d, changes %d, all %d, with geometry %d", Visibility.valid, Visibility.stamp, Visibility.changes,
                 Visibility.allCount, Visibility.count);
-        line(out, "dirty %d listed %d, recovered updates %d, graph %d changed %d gains %d, version %d membership %d", SectionData.dirtyCount,
-                SectionData.dirtyListed, SectionData.recovered, SectionData.graph, SectionData.changed, SectionData.gains, SectionData.version,
+        line(out, "dirty %d listed %d, recovered updates %d, rebuilt lost geometry %d, graph %d changed %d gains %d, version %d membership %d", SectionData.dirtyCount,
+                SectionData.dirtyListed, SectionData.recovered, SectionData.repaired, SectionData.graph, SectionData.changed, SectionData.gains, SectionData.version,
                 SectionData.membership);
+        line(out, "%s", com.qateralong.nimbus.lod.LodRenderer.debug());
+        line(out, "%s, particle instances drawn since start %d", EntityInstances.debug(), ParticleInstances.drawn);
         if (minecraft.levelRenderer == null || minecraft.level == null) {
             line(out, "no level");
             return out.toString();
@@ -47,6 +49,8 @@ public final class Diagnostics {
         problems(out, visible, lists, layers);
         out.append('\n');
         nearby(out, minecraft, renderer, lists, layers);
+        out.append('\n');
+        light(out, minecraft);
         return out.toString();
     }
 
@@ -59,7 +63,8 @@ public final class Diagnostics {
             if (issue != null) {
                 if (problems++ < MAX_PROBLEMS) {
                     BlockPos origin = section.getOrigin();
-                    line(out, "%d %d %d: %s", origin.getX(), origin.getY(), origin.getZ(), issue);
+                    String history = problems <= 40 ? SectionEvents.history(((SectionStamp) section).nimbus$id(), layers) : "";
+                    line(out, "%d %d %d: %s%s", origin.getX(), origin.getY(), origin.getZ(), issue, history);
                 }
             }
         }
@@ -195,7 +200,27 @@ public final class Diagnostics {
         }
     }
 
-    private static String name(RenderType layer) {
+    private static void light(StringBuilder out, Minecraft minecraft) {
+        if (!(minecraft.level.getLightEngine() instanceof com.qateralong.nimbus.light.ClientLight engine)) {
+            line(out, "== light: vanilla engine %s ==", minecraft.level.getLightEngine().getClass().getSimpleName());
+            return;
+        }
+        line(out, "== Nimbus light around the camera (section x y z: data, value range), stale sources rechecked %d ==",
+                com.qateralong.nimbus.light.ClientLight.repairedSources);
+        var camera = minecraft.gameRenderer.getMainCamera().getPosition();
+        int cx = SectionPos.posToSectionCoord(camera.x);
+        int cy = SectionPos.posToSectionCoord(camera.y);
+        int cz = SectionPos.posToSectionCoord(camera.z);
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    line(out, "%d %d %d: %s", (cx + dx) << 4, (cy + dy) << 4, (cz + dz) << 4, engine.describe(cx + dx, cy + dy, cz + dz));
+                }
+            }
+        }
+    }
+
+    static String name(RenderType layer) {
         String text = layer.toString();
         int open = text.indexOf("RenderType[");
         if (open >= 0) {

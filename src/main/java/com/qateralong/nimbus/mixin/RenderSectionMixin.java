@@ -62,6 +62,9 @@ public abstract class RenderSectionMixin implements SectionStamp {
 
     @Override
     public TerrainSlot[] nimbus$slots() {
+        if (this.nimbus$slots != null && this.nimbus$slots.length > 0) {
+            this.nimbus$follow();
+        }
         if (this.nimbus$slots == null) {
             if (!Terrain.supported()) {
                 this.nimbus$slots = new TerrainSlot[0];
@@ -80,6 +83,28 @@ public abstract class RenderSectionMixin implements SectionStamp {
         return this.nimbus$slots;
     }
 
+    // Other mods may swap a layer's VertexBuffer for a new one (VanillaBackport closes and replaces buffers of layers
+    // that were empty before a move). Uploads then go to the new buffer, which must belong to this section too.
+    @Unique
+    private void nimbus$follow() {
+        TerrainSlot[] slots = this.nimbus$slots;
+        List<RenderType> layers = RenderType.chunkBufferLayers();
+        for (int i = 0; i < slots.length && i < layers.size(); i++) {
+            VertexBuffer current = this.buffers.get(layers.get(i));
+            if (current != slots[i] && current instanceof TerrainSlot slot) {
+                slot.nimbus$bind(this.nimbus$id, i);
+                slots[i] = slot;
+            }
+        }
+    }
+
+    @Inject(method = "getBuffer", at = @At("RETURN"))
+    private void nimbus$current(RenderType layer, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<VertexBuffer> cir) {
+        if (cir.getReturnValue() instanceof TerrainSlot slot && slot.nimbus$section() != this.nimbus$id && this.nimbus$slots != null) {
+            this.nimbus$follow();
+        }
+    }
+
     @Inject(method = "setCompiled", at = @At("RETURN"))
     private void nimbus$compiled(SectionRenderDispatcher.CompiledSection compiled, CallbackInfo ci) {
         if (com.qateralong.nimbus.render.SectionData.later(() -> this.nimbus$compiledNow(((SectionRenderDispatcher.RenderSection) (Object) this).getCompiled()))) {
@@ -96,11 +121,20 @@ public abstract class RenderSectionMixin implements SectionStamp {
         }
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, !compiled.getRenderableBlockEntities().isEmpty());
         com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, compiled);
+        int mask = 0;
+        java.util.List<net.minecraft.client.renderer.RenderType> layers = net.minecraft.client.renderer.RenderType.chunkBufferLayers();
+        for (int l = 0; l < layers.size(); l++) {
+            if (!compiled.isEmpty(layers.get(l))) {
+                mask |= 1 << l;
+            }
+        }
+        com.qateralong.nimbus.render.SectionEvents.add(this.nimbus$id, com.qateralong.nimbus.render.SectionEvents.COMPILED, 0, mask);
         Terrain.compiled(this, compiled);
     }
 
     @Inject(method = "reset", at = @At("RETURN"))
     private void nimbus$reset(CallbackInfo ci) {
+        com.qateralong.nimbus.render.SectionEvents.add(this.nimbus$id, com.qateralong.nimbus.render.SectionEvents.RESET, 0, 0);
         com.qateralong.nimbus.render.SectionData.setBlockEntities(this.nimbus$id, false);
         com.qateralong.nimbus.render.SectionData.setDirty(this.nimbus$id, true);
         com.qateralong.nimbus.render.SectionData.setVisibility(this.nimbus$id, null);

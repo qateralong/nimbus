@@ -20,4 +20,7 @@ public interface TerrainSlot {
     int nimbus$section();
 
     int nimbus$layer();
+
+    // stores queued for this buffer and not run yet
+    int nimbus$pending(int delta);
 }

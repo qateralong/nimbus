@@ -18,6 +18,16 @@ public abstract class TextureAtlasMixin {
         if (TextureAtlas.LOCATION_BLOCKS.equals(this.location)) {
             com.qateralong.nimbus.render.AnimatedSprites.reset();
         }
+        if (Boolean.getBoolean("nimbus.atlasHash")) {
+            long hash = 0L;
+            for (var entry : new java.util.TreeMap<>(preparations.regions()).entrySet()) {
+                var sprite = entry.getValue();
+                hash = hash * 31L + entry.getKey().hashCode();
+                hash = hash * 31L + ((long) sprite.getX() << 32 | sprite.getY());
+            }
+            com.qateralong.nimbus.Nimbus.LOGGER.info("Nimbus atlas {}: {}x{}, {} sprites, layout {}", this.location, preparations.width(), preparations.height(),
+                    preparations.regions().size(), Long.toHexString(hash));
+        }
     }
 
     @Inject(method = "upload", at = @At("RETURN"))

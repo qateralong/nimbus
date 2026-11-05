@@ -25,6 +25,9 @@ public class Nimbus implements ClientModInitializer {
     public void onInitializeClient() {
         Startup.reloadBegin();
         NimbusConfig.get();
+        if (Compat.SMOOTH_GUI) {
+            LOGGER.info("Nimbus: smooth scrolling mod found, HUD cache, GUI batching and item icon cache are off");
+        }
         if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("enhancedblockentities")) {
             net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("nimbus").ifPresent(container -> Chests.available =
                     net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(

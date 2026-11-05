@@ -32,6 +32,14 @@ public abstract class TerrainBufferMixin implements TerrainSlot {
     @Unique
     private int nimbus$layer = -1;
 
+    @Unique
+    private final java.util.concurrent.atomic.AtomicInteger nimbus$pending = new java.util.concurrent.atomic.AtomicInteger();
+
+    @Override
+    public int nimbus$pending(int delta) {
+        return delta == 0 ? this.nimbus$pending.get() : this.nimbus$pending.addAndGet(delta);
+    }
+
     @Override
     public void nimbus$bind(int section, int layer) {
         this.nimbus$section = section;
@@ -117,6 +125,7 @@ public abstract class TerrainBufferMixin implements TerrainSlot {
     @Inject(method = "close", at = @At("HEAD"))
     private void nimbus$release(CallbackInfo ci) {
         if (this.nimbus$count > 0 || this.nimbus$copy != 0L) {
+            com.qateralong.nimbus.render.SectionEvents.add(this.nimbus$section, com.qateralong.nimbus.render.SectionEvents.RELEASED_CLOSE, this.nimbus$layer, this.nimbus$count);
             Terrain.release(this);
         }
         if (this.arrayObjectId == 0) {

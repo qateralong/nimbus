@@ -28,7 +28,10 @@
     "ChestShapeMixin",
     "ChunkBlockEntityMixin",
     "ClientBiomeMixin",
+    "ChunkPacketDataMixin",
+    "ClientChunkPacketMixin",
     "ClientLevelMixin",
+    "ClientLightEngineMixin",
     "ClientSkyMixin",
     "CloudColorMixin",
     "CloudHeightMixin",
@@ -72,6 +75,7 @@
     "ItemRendererAccessor",
     "JoinTimingMixin",
     "KeyboardMixin",
+    "LevelChunkLightMixin",
     "LevelRendererAccessor",
     "LevelRendererGraphicsMixin",
     "LevelRendererMixin",
@@ -104,6 +108,18 @@
     "ScreenBatchMixin",
     "SectionCompilerMixin",
     "SectionDispatcherMixin",
+    "CompileTaskAccessor",
+    "RebuildTaskMixin",
+    "ItemGroupEntriesMixin",
+    "StitcherRegionMixin",
+    "StitcherHolderAccessor",
+    "AthenaDataMixin",
+    "RenderSystemLightAccessor",
+    "SpriteImageAccessor",
+    "LodHooksMixin",
+    "LodGameMixin",
+    "LodRenderMixin",
+    "LodDepthMixin",
     "SectionPoseMixin",
     "ShaderInstanceAccessor",
     "ShulkerLidMixin",
@@ -130,7 +146,6 @@
     "VertexFormatMixin",
     "ViewAreaAccessor",
     "ViewAreaMixin",
-    "VoxelShapeMixin",
     "VisibilityResetMixin",
     "WeatherCacheMixin",
     "WindowDisplayMixin",
@@ -139,8 +154,5 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "plugin": "com.qateralong.nimbus.MixinPlugin",
-  "mixins": [
-    "StateHolderMixin"
-  ]
+  "plugin": "com.qateralong.nimbus.MixinPlugin"
 }
