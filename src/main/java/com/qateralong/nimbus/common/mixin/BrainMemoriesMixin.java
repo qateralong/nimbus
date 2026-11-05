@@ -1,6 +1,5 @@
 package com.qateralong.nimbus.common.mixin;
 
-import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceArraySet;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +32,7 @@ public abstract class BrainMemoriesMixin {
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void nimbus$identity(CallbackInfo ci) {
-        this.memories = new Reference2ObjectOpenHashMap<>(this.memories);
+        this.memories = new com.qateralong.nimbus.common.PresenceMap<>(this.memories);
         // a handful of activities at most: a linear identity scan beats hashing
         this.activeActivities = new ReferenceArraySet<>(this.activeActivities);
     }
