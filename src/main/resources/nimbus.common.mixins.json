@@ -72,6 +72,8 @@
     "PaletteCountMixin",
     "ChunkStatesCodecMixin",
     "ChunkBiomeCodecMixin",
+    "EntitySupportMixin",
+    "EntityFallCacheMixin",
     "VoxelShapeAccessor",
     "ShapesJoinMixin",
     "LevelChunkTickingAccessor",

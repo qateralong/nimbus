@@ -35,7 +35,7 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "CompoundContainerAccessor", "BlockEntityVersionMixin", "BaseContainerVersionMixin",
                  "HopperVersionMixin", "FurnaceVersionMixin", "DispenserVersionMixin" -> !lithium && (CommonConfig.enabled("hopperIdle") || CommonConfig.enabled("furnaceSleep"));
             case "VoxelShapeAccessor" -> !lithium && (CommonConfig.enabled("blockCollisions") || CommonConfig.enabled("shapeOverlap") || CommonConfig.enabled("boatFriction"));
-            case "ChunkSectionFlagsMixin" -> !lithium && (CommonConfig.enabled("blockCollisions") || CommonConfig.enabled("dryEntities") || CommonConfig.enabled("hopperIdle") || CommonConfig.enabled("blockSearch"));
+            case "ChunkSectionFlagsMixin" -> !lithium && (CommonConfig.enabled("blockCollisions") || CommonConfig.enabled("supportCache") || CommonConfig.enabled("fallCache") || CommonConfig.enabled("dryEntities") || CommonConfig.enabled("hopperIdle") || CommonConfig.enabled("blockSearch"));
             case "EntitySectionCountMixin", "LevelEntityGetterAccessor", "LevelEntitiesAccessor" ->
                     !lithium && (CommonConfig.enabled("entityCollisions") || CommonConfig.enabled("hopperEntities") || CommonConfig.enabled("hopperIdle"));
             case "EntitySectionIterMixin" -> !lithium && CommonConfig.enabled("entityByType");
@@ -96,6 +96,8 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "PalettePackMixin", "PaletteCountMixin", "StrategyAccessor" -> "chunkPacking";
             case "ChunkStatesCodecMixin", "ChunkBiomeCodecMixin" -> "chunkCodec";
             case "ShulkerIdleMixin", "CrafterIdleMixin", "CampfireIdleMixin" -> "idleBlockEntities";
+            case "EntitySupportMixin" -> "supportCache";
+            case "EntityFallCacheMixin" -> "fallCache";
             default -> null;
         };
     }
