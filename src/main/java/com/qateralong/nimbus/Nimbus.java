@@ -88,6 +88,10 @@ public class Nimbus implements ClientModInitializer {
             while (settings.consumeClick()) {
                 client.setScreen(new NimbusScreen(client.screen));
             }
+            if (client.level != null && client.level.getLightEngine() instanceof com.qateralong.nimbus.light.ClientLight light) {
+                var camera = client.gameRenderer.getMainCamera().getPosition();
+                light.healAround(camera.x, camera.y, camera.z);
+            }
             Cull.adapt(client.getFps());
             Idle.tick(client);
             Bench.tick(client);

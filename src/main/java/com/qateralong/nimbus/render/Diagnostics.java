@@ -205,8 +205,8 @@ public final class Diagnostics {
             line(out, "== light: vanilla engine %s ==", minecraft.level.getLightEngine().getClass().getSimpleName());
             return;
         }
-        line(out, "== Nimbus light around the camera (section x y z: data, value range), stale sources rechecked %d ==",
-                com.qateralong.nimbus.light.ClientLight.repairedSources);
+        line(out, "== Nimbus light around the camera (section x y z: data, value range), stale sources rechecked %d, dark spots healed %d ==",
+                com.qateralong.nimbus.light.ClientLight.repairedSources, com.qateralong.nimbus.light.ClientLight.healedSpots);
         var camera = minecraft.gameRenderer.getMainCamera().getPosition();
         int cx = SectionPos.posToSectionCoord(camera.x);
         int cy = SectionPos.posToSectionCoord(camera.y);
@@ -214,7 +214,8 @@ public final class Diagnostics {
         for (int dy = -1; dy <= 1; dy++) {
             for (int dz = -1; dz <= 1; dz++) {
                 for (int dx = -1; dx <= 1; dx++) {
-                    line(out, "%d %d %d: %s", (cx + dx) << 4, (cy + dy) << 4, (cz + dz) << 4, engine.describe(cx + dx, cy + dy, cz + dz));
+                    line(out, "%d %d %d: %s, too dark %d", (cx + dx) << 4, (cy + dy) << 4, (cz + dz) << 4, engine.describe(cx + dx, cy + dy, cz + dz),
+                            engine.darkSpots(cx + dx, cy + dy, cz + dz, false));
                 }
             }
         }

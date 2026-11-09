@@ -93,7 +93,8 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "FluidWallMixin" -> "fluidWalls";
             case "BehaviorMemoryCacheMixin", "BrainMemoriesAccessor" -> "memoryCounting";
             case "ChunkUnloadSpinMixin" -> "unloadSpin";
-            case "PalettePackMixin", "PaletteCountMixin" -> "chunkPacking";
+            case "PalettePackMixin", "PaletteCountMixin", "StrategyAccessor" -> "chunkPacking";
+            case "ChunkStatesCodecMixin", "ChunkBiomeCodecMixin" -> "chunkCodec";
             case "ShulkerIdleMixin", "CrafterIdleMixin", "CampfireIdleMixin" -> "idleBlockEntities";
             default -> null;
         };

@@ -26,7 +26,7 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 // Distant terrain from LodStore: tiles of 8x8 chunks meshed off-thread as height fields (tops plus walls down to the
-// lower neighbour), drawn before the solid layer and dropped wherever the real world is rendered.
+// lower neighbour), drawn after the opaque terrain layers and dropped wherever the real world is rendered.
 public final class LodRenderer {
     private static final int TILE_CHUNKS = 8;
     private static final int TILE_CELLS = TILE_CHUNKS * LodStore.CELLS;

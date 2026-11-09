@@ -54,6 +54,7 @@ public final class ClientLight extends LevelLightEngine {
     // checks for chunks whose light is not on yet: vanilla drops them, they wait here for the light data instead
     private final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<it.unimi.dsi.fastutil.longs.LongArrayList> deferred = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
     public static int repairedSources;
+    public static int healedSpots;
     private final LongOpenHashSet affected = new LongOpenHashSet();
     private final LongConsumer markAffected = this.affected::add;
     private final ArrayList<LightColumn> touched = new ArrayList<>();
@@ -538,6 +539,93 @@ public final class ClientLight extends LevelLightEngine {
             }
         }
         return FULL.clone();
+    }
+
+    // Blocks darker than a neighbour's block light allows: stale data from the server or a lost update. With fix they are
+    // queued, and the next light run pulls the neighbours' light in. Main thread.
+    public int darkSpots(int sx, int sy, int sz, boolean fix) {
+        int index = sy - this.minSection;
+        if (index < 0 || index >= this.sections) {
+            return 0;
+        }
+        this.clearCache();
+        int found = 0;
+        int baseX = sx << 4;
+        int baseY = sy << 4;
+        int baseZ = sz << 4;
+        if (this.column(baseX, baseZ) == null) {
+            return 0;
+        }
+        for (int y = baseY; y < baseY + 16; y++) {
+            for (int z = baseZ; z < baseZ + 16; z++) {
+                for (int x = baseX; x < baseX + 16; x++) {
+                    if (this.tooDark(x, y, z, index)) {
+                        found++;
+                        if (fix) {
+                            this.pending.add(BlockPos.asLong(x, y, z));
+                        }
+                    }
+                }
+            }
+        }
+        this.clearCache();
+        if (fix) {
+            healedSpots += found;
+        }
+        return found;
+    }
+
+    private boolean tooDark(int x, int y, int z, int index) {
+        LightColumn column = this.column(x, z);
+        int current = this.get(false, column, index, x, y, z);
+        if (current >= 14) {
+            return false;
+        }
+        BlockState to = this.state(x, y, z);
+        if (to.getLightEmission() > current) {
+            return true;
+        }
+        int loss = -1;
+        long pos = BlockPos.asLong(x, y, z);
+        for (Direction direction : DIRECTIONS) {
+            int nx = x + direction.getStepX();
+            int ny = y + direction.getStepY();
+            int nz = z + direction.getStepZ();
+            int nIndex = (ny >> 4) - this.minSection;
+            if (nIndex < 0 || nIndex >= this.sections) {
+                continue;
+            }
+            LightColumn neighbour = this.column(nx, nz);
+            if (neighbour == null) {
+                continue;
+            }
+            int level = this.get(false, neighbour, nIndex, nx, ny, nz);
+            if (level - 1 <= current) {
+                continue;
+            }
+            if (loss < 0) {
+                loss = Math.max(1, this.opacity(to, x, y, z));
+            }
+            if (level - loss <= current) {
+                continue;
+            }
+            long from = BlockPos.asLong(nx, ny, nz);
+            if (!this.occludes(this.state(nx, ny, nz), from, to, pos, direction.getOpposite())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int healed;
+
+    // one section of the 3x3x3 around the camera per call
+    public void healAround(double cameraX, double cameraY, double cameraZ) {
+        int step = this.healed++ % 27;
+        int sx = SectionPos.posToSectionCoord(cameraX) + step % 3 - 1;
+        int sy = SectionPos.posToSectionCoord(cameraY) + step / 9 - 1;
+        int sz = SectionPos.posToSectionCoord(cameraZ) + step / 3 % 3 - 1;
+        this.darkSpots(sx, sy, sz, true);
     }
 
     private static long entry(int level, int directions) {

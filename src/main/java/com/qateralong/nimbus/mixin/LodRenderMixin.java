@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelRenderer.class)
 public abstract class LodRenderMixin {
-    // after the sky, before the first terrain layer
-    @Inject(method = "renderLevel", at = @At(value = "INVOKE", ordinal = 0,
+    // after the opaque terrain layers: the depth test drops LOD pixels the real world already covers
+    @Inject(method = "renderLevel", at = @At(value = "INVOKE", ordinal = 2, shift = At.Shift.AFTER,
             target = "Lnet/minecraft/client/renderer/LevelRenderer;renderSectionLayer(Lnet/minecraft/client/renderer/RenderType;DDDLorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"))
     private void nimbus$lod(DeltaTracker delta, boolean outline, Camera camera, GameRenderer gameRenderer, LightTexture light, Matrix4f frustum,
                             Matrix4f projection, CallbackInfo ci) {
