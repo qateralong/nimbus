@@ -71,7 +71,11 @@ public class Nimbus implements ClientModInitializer {
         });
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((graphics, delta) -> FpsOverlay.render(graphics));
         net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> BugReport.joined(client));
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> com.qateralong.nimbus.render.Terrain.init());
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
+            com.qateralong.nimbus.render.Terrain.init();
+            com.qateralong.nimbus.pack.PackTest.runFromProperty(client.gameDirectory.toPath());
+            com.qateralong.nimbus.pack.Pipeline.ensure();
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ticks++;
             BiomeCache.tick();

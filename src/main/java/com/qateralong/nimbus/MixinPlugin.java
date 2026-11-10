@@ -47,6 +47,10 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".StateHolderMixin")) {
             return this.fastStates && !FabricLoader.getInstance().isModLoaded("ferritecore");
         }
+        if (mixinClassName.contains(".Pack") && mixinClassName.endsWith("Mixin")) {
+            // our shader pack loader; with Iris installed its own pipeline is used
+            return !FabricLoader.getInstance().isModLoaded("iris") && !FabricLoader.getInstance().isModLoaded("sodium");
+        }
         if (mixinClassName.endsWith(".SodiumCullerMixin") || mixinClassName.endsWith(".SodiumCullerAccessor") || mixinClassName.endsWith(".SodiumGraphMixin")
                 || mixinClassName.endsWith(".SodiumMipFillMixin")) {
             return FabricLoader.getInstance().isModLoaded("sodium") && FabricLoader.getInstance().getModContainer("sodium")

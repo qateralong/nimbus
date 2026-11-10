@@ -123,7 +123,7 @@ public final class ParticleInstances {
         target = null;
         count = 0;
         NimbusConfig config = NimbusConfig.get();
-        if (builder == null || !config.enabled || !config.particleInstancing || com.qateralong.nimbus.Compat.IRIS) {
+        if (builder == null || !config.enabled || !config.particleInstancing || com.qateralong.nimbus.Compat.IRIS || com.qateralong.nimbus.pack.Pipeline.active()) {
             return;
         }
         if (type != ParticleRenderType.PARTICLE_SHEET_OPAQUE && type != ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT

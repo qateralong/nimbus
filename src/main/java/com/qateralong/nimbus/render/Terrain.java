@@ -140,8 +140,11 @@ public final class Terrain {
                 return;
             }
             Nimbus.LOGGER.info("Nimbus terrain renderer on {}", gpu);
+            // pages sit at the top of the binding range: shader packs number their own storage buffers from 0
+            int bindings = GL11.glGetInteger(GL43.GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS);
             Arena.maxPages = Math.max(1, Math.min(Arena.LIMIT, Math.min(GL11.glGetInteger(GL43.GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS),
-                    GL11.glGetInteger(GL43.GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS))));
+                    bindings > 16 ? bindings - 8 : bindings)));
+            Arena.pageBase = bindings - Arena.maxPages;
             program = new TerrainProgram(false);
             cutoutProgram = new TerrainProgram(true);
             arena = new Arena();
@@ -946,7 +949,176 @@ public final class Terrain {
         }
     }
 
+    // vertex fetch functions for shader pack programs drawn by the engine
+    public static String packPrelude() {
+        return Arena.shaderPages(Arena.maxPages);
+    }
+
+    private static final Commands SHADOW = new Commands();
+
+    // all resident geometry of a layer inside the light's box, drawn with whatever program is bound (the pack's shadow program)
+    // sections inside the light's box, recomputed when the camera moves a few blocks, the light turns, or every quarter second;
+    // a margin covers the camera drifting in between
+    private static int[] shadowHeads = new int[1024];
+    private static int shadowCount;
+    private static final Matrix4f SHADOW_LIGHT = new Matrix4f();
+    private static double shadowX = Double.NaN;
+    private static double shadowY;
+    private static double shadowZ;
+    private static long shadowAt;
+    private static int[] shadowRecords;
+
+    private static void shadowCandidates(int[] records, int stride, Matrix4f light, double x, double y, double z, float reach) {
+        long now = System.nanoTime();
+        double dx = x - shadowX;
+        double dy = y - shadowY;
+        double dz = z - shadowZ;
+        if (records == shadowRecords && now - shadowAt < 250_000_000L && dx * dx + dy * dy + dz * dz < 16.0 && light.equals(SHADOW_LIGHT, 1.0E-5F)) {
+            return;
+        }
+        shadowRecords = records;
+        shadowAt = now;
+        shadowX = x;
+        shadowY = y;
+        shadowZ = z;
+        SHADOW_LIGHT.set(light);
+        org.joml.Vector4f v = new org.joml.Vector4f();
+        float pad = 22.0F / Math.max(reach, 1.0F);
+        int count = 0;
+        for (int head = 0; head + stride <= records.length; head += stride) {
+            if (records[head + 3] == 0) {
+                continue;
+            }
+            float cx = (float) (records[head] - x);
+            float cy = (float) (records[head + 1] - y);
+            float cz = (float) (records[head + 2] - z);
+            if (Math.abs(cx + 8) > reach + 20 || Math.abs(cz + 8) > reach + 20) {
+                continue;
+            }
+            light.transform(v.set(cx + 8, cy + 8, cz + 8, 1.0F));
+            if (Math.abs(v.x) > 1.0F + pad || Math.abs(v.y) > 1.0F + pad) {
+                continue;
+            }
+            if (count == shadowHeads.length) {
+                shadowHeads = java.util.Arrays.copyOf(shadowHeads, count * 2);
+            }
+            shadowHeads[count++] = head;
+        }
+        shadowCount = count;
+    }
+
+    private static int[] shadowVisible = new int[1024];
+    private static int shadowVisibleCount;
+    private static boolean shadowPrepared;
+    private static final org.joml.Vector4f[] PLANES = {new org.joml.Vector4f(), new org.joml.Vector4f(), new org.joml.Vector4f(),
+            new org.joml.Vector4f(), new org.joml.Vector4f(), new org.joml.Vector4f()};
+
+    // this frame's shadow casters: candidates whose shadow, swept along the light for a while, can land inside the camera's view
+    // keep: sections this close to the camera stay regardless of the view (reversed culling around voxelizing packs)
+    public static void prepareShadow(Matrix4f light, Matrix4f viewProjection, float lx, float ly, float lz, double x, double y, double z, float reach, float keep) {
+        shadowPrepared = false;
+        if (!active() || arena == null) {
+            return;
+        }
+        int[] records = SectionData.records;
+        int stride = SectionData.ID_STRIDE;
+        shadowCandidates(records, stride, light, x, y, z, reach);
+        for (int i = 0; i < 6; i++) {
+            viewProjection.frustumPlane(i, PLANES[i]);
+        }
+        if (shadowVisible.length < shadowCount) {
+            shadowVisible = new int[shadowHeads.length];
+        }
+        float sweep = 256.0F;
+        int count = 0;
+        for (int i = 0; i < shadowCount; i++) {
+            int head = shadowHeads[i];
+            if (head + stride > records.length) {
+                continue;
+            }
+            float cx = (float) (records[head] - x) + 8.0F;
+            float cy = (float) (records[head + 1] - y) + 8.0F;
+            float cz = (float) (records[head + 2] - z) + 8.0F;
+            float ex = cx + lx * sweep;
+            float ey = cy + ly * sweep;
+            float ez = cz + lz * sweep;
+            boolean outside = false;
+            boolean near = Math.max(Math.abs(cx), Math.max(Math.abs(cy), Math.abs(cz))) <= keep + 8.0F;
+            for (int k = 0; k < 6 && !near; k++) {
+                org.joml.Vector4f p = PLANES[k];
+                // the section's radius is 8√3
+                if (p.x * cx + p.y * cy + p.z * cz + p.w < -14.0F && p.x * ex + p.y * ey + p.z * ez + p.w < -14.0F) {
+                    outside = true;
+                    break;
+                }
+            }
+            if (!outside) {
+                shadowVisible[count++] = head;
+            }
+        }
+        shadowVisibleCount = count;
+        shadowPrepared = true;
+    }
+
+    public static void shadowDone() {
+        shadowPrepared = false;
+    }
+
+    public static int drawShadow(RenderType layer, Matrix4f light, double x, double y, double z, float reach) {
+        if (!active() || arena == null) {
+            return 0;
+        }
+        int l = layerIndex(layer);
+        if (l < 0) {
+            return 0;
+        }
+        Commands list = SHADOW;
+        list.clear();
+        int[] records = SectionData.records;
+        int stride = SectionData.ID_STRIDE;
+        if (!shadowPrepared) {
+            shadowCandidates(records, stride, light, x, y, z, reach);
+            System.arraycopy(shadowHeads, 0, shadowVisible.length >= shadowCount ? shadowVisible : (shadowVisible = new int[shadowHeads.length]), 0, shadowCount);
+            shadowVisibleCount = shadowCount;
+        }
+        int[] heads = shadowVisible;
+        for (int i = 0; i < shadowVisibleCount; i++) {
+            int head = heads[i];
+            if (head + stride > records.length || (records[head + 3] >>> l & 1) == 0) {
+                continue;
+            }
+            int at = head + SectionData.HEADER + l * SectionData.STRIDE;
+            int count = records[at + SectionData.COUNT];
+            if (count > 0) {
+                list.add(records[at + SectionData.START], count, head / stride, MAX_QUADS_PER_DRAW);
+            }
+        }
+        list.upload();
+        if (list.count == 0 || list.offset < 0) {
+            return 0;
+        }
+        GlStateManager._glBindVertexArray(vao);
+        for (int page = 0; page < Arena.maxPages; page++) {
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, arena.buffer(page));
+        }
+        GL43.glBindVertexBuffer(0, Origins.buffer(), 0, 16);
+        GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, Stream.buffer());
+        GL43.glMultiDrawElementsIndirect(GL11.GL_TRIANGLES, GL11.GL_UNSIGNED_SHORT, list.offset, list.count, 20);
+        GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, 0);
+        for (int page = 0; page < Arena.maxPages; page++) {
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, 0);
+        }
+        GlStateManager._glBindVertexArray(0);
+        BufferUploader.invalidate();
+        return list.count;
+    }
+
     private static void draw(RenderType layer, Matrix4f modelView, Matrix4f projection, long commandOffset, int draws, double x, double y, double z) {
+        com.qateralong.nimbus.pack.Pipeline pipeline = com.qateralong.nimbus.pack.Pipeline.get();
+        if (pipeline != null && pipeline.engineProgram(layer, modelView, projection, x, y, z) != null) {
+            drawPacked(commandOffset, draws);
+            return;
+        }
         int atlas = RenderSystem.getShaderTexture(0);
         int lightmap = RenderSystem.getShaderTexture(2);
         float alpha = cutoff(layer);
@@ -974,14 +1146,34 @@ public final class Terrain {
         GlStateManager._bindTexture(atlas);
         GlStateManager._glBindVertexArray(vao);
         for (int page = 0; page < Arena.maxPages; page++) {
-            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, page, arena.buffer(page));
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, arena.buffer(page));
         }
         GL43.glBindVertexBuffer(0, Origins.buffer(), 0, 16);
         GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, Stream.buffer());
         GL43.glMultiDrawElementsIndirect(GL11.GL_TRIANGLES, GL11.GL_UNSIGNED_SHORT, commandOffset, draws, 20);
         GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, 0);
         for (int page = 0; page < Arena.maxPages; page++) {
-            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, page, 0);
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, 0);
+        }
+        GlStateManager._glBindVertexArray(0);
+        BufferUploader.invalidate();
+        GlStateManager._glUseProgram(0);
+        ShaderInstanceAccessor.nimbus$setLastProgramId(-1);
+        ShaderInstanceAccessor.nimbus$setLastAppliedShader(null);
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+    }
+
+    private static void drawPacked(long commandOffset, int draws) {
+        GlStateManager._glBindVertexArray(vao);
+        for (int page = 0; page < Arena.maxPages; page++) {
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, arena.buffer(page));
+        }
+        GL43.glBindVertexBuffer(0, Origins.buffer(), 0, 16);
+        GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, Stream.buffer());
+        GL43.glMultiDrawElementsIndirect(GL11.GL_TRIANGLES, GL11.GL_UNSIGNED_SHORT, commandOffset, draws, 20);
+        GlStateManager._glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, 0);
+        for (int page = 0; page < Arena.maxPages; page++) {
+            GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, Arena.pageBase + page, 0);
         }
         GlStateManager._glBindVertexArray(0);
         BufferUploader.invalidate();

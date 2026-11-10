@@ -80,6 +80,8 @@ public final class NimbusConfig {
     public boolean particleInstancing = true;
     public boolean entityInstancing = true;
     public boolean lod = true;
+    // file or folder name in .minecraft/shaderpacks, empty = off
+    public String shaderPack = "";
     public int lodDistance = 48;
     public boolean weatherCache = true;
     public boolean fluidCache = true;

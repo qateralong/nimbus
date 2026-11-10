@@ -553,7 +553,8 @@ public final class ClientLight extends LevelLightEngine {
         int baseX = sx << 4;
         int baseY = sy << 4;
         int baseZ = sz << 4;
-        if (this.column(baseX, baseZ) == null) {
+        if (this.column(baseX, baseZ) == null || this.quiet(baseX, baseZ, index)) {
+            this.clearCache();
             return 0;
         }
         for (int y = baseY; y < baseY + 16; y++) {
@@ -573,6 +574,28 @@ public final class ClientLight extends LevelLightEngine {
             healedSpots += found;
         }
         return found;
+    }
+
+    // no block light in the section or next to it and nothing in it that glows: nothing can be too dark
+    private boolean quiet(int baseX, int baseZ, int index) {
+        LightColumn c = this.column(baseX, baseZ);
+        if (this.data(c, false, index) != null || index > 0 && this.data(c, false, index - 1) != null
+                || index + 1 < this.sections && this.data(c, false, index + 1) != null) {
+            return false;
+        }
+        for (int i = 0; i < 4; i++) {
+            LightColumn n = this.column(baseX + (i == 0 ? 16 : i == 1 ? -16 : 0), baseZ + (i == 2 ? 16 : i == 3 ? -16 : 0));
+            if (n != null && this.data(n, false, index) != null) {
+                return false;
+            }
+        }
+        LightChunk chunk = this.cacheChunk[this.slot(baseX >> 4, baseZ >> 4)];
+        if (!(chunk instanceof net.minecraft.world.level.chunk.ChunkAccess access)) {
+            return false;
+        }
+        // light sections reach one past the world at both ends
+        int section = access.getSectionIndexFromSectionY(index + this.minSection);
+        return section < 0 || section >= access.getSections().length || !access.getSection(section).maybeHas(state -> state.getLightEmission() > 0);
     }
 
     private boolean tooDark(int x, int y, int z, int index) {

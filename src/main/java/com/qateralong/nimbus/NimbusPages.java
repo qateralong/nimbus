@@ -247,6 +247,27 @@ public final class NimbusPages {
         if (Terrain.supported()) {
             toggle(optimizations, "section_light_cache", c -> c.sectionLightCache, (c, v) -> c.sectionLightCache = v);
         }
+        if (com.qateralong.nimbus.pack.Pipeline.supported()) {
+            OptionPage shaders = page(mod, "shaders");
+            OptionGroup packs = group(shaders, "shader_packs");
+            List<String> names = new ArrayList<>();
+            names.add("");
+            names.addAll(com.qateralong.nimbus.pack.Pipeline.packNames());
+            packs.add(Option.<String>cycle("nimbus:shader_pack").name(label("shader_pack")).tooltip(tip("shader_pack"))
+                    .values(names)
+                    .binding(() -> names.contains(config().shaderPack) ? config().shaderPack : "", name -> {
+                        config().shaderPack = name;
+                        com.qateralong.nimbus.pack.Pipeline.select(name);
+                    })
+                    .formatter(name -> name.isEmpty() ? Component.translatable("nimbus.shader_pack.off") : Component.literal(name)));
+            packs.add(Option.action("nimbus:shader_options").name(label("shader_options")).tooltip(tip("shader_options"))
+                    .action(screen -> {
+                        com.qateralong.nimbus.pack.Pipeline pipeline = com.qateralong.nimbus.pack.Pipeline.get();
+                        if (pipeline != null) {
+                            Minecraft.getInstance().setScreen(new com.qateralong.nimbus.pack.PackOptionsScreen(screen, pipeline.options, ""));
+                        }
+                    }));
+        }
     }
 
     private static OptionPage page(ModOptions mod, String id) {

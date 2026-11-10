@@ -296,5 +296,12 @@
   "nimbus.bug.saved": "%s saved",
   "nimbus.bug.failed": "Could not save the bug report, see the log",
   "nimbus.bug.chat": "[Nimbus] %s saved to %s — send the file to the developer",
-  "nimbus.bug.hint": "[Nimbus %s] Test build: if you see a bug, press %s — a report is saved to nimbus-bugs"
+  "nimbus.bug.hint": "[Nimbus %s] Test build: if you see a bug, press %s — a report is saved to nimbus-bugs",
+  "nimbus.tab.shaders": "Shaders",
+  "nimbus.group.shader_packs": "Shader pack",
+  "nimbus.option.shader_pack": "Shader pack",
+  "nimbus.option.shader_pack.tip": "OptiFine/Iris shader packs from the shaderpacks folder, run by Nimbus itself (no Iris or Sodium needed). Experimental.",
+  "nimbus.shader_pack.off": "Off",
+  "nimbus.option.shader_options": "Shader pack options...",
+  "nimbus.option.shader_options.tip": "The pack's own settings (quality, effects). Saved next to the pack, read by Iris and OptiFine too."
 }

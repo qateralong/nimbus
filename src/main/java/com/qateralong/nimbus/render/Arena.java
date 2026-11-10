@@ -17,6 +17,7 @@ final class Arena {
     static final int VERTEX_SHIFT = PAGE_SHIFT + 2;
     static final int LIMIT = 16;
     static int maxPages = 8;
+    static int pageBase;
 
     private final TreeMap<Integer, Integer> free = new TreeMap<>();
     private final java.util.TreeSet<Long> sizes = new java.util.TreeSet<>();
@@ -148,7 +149,7 @@ final class Arena {
     static String shaderPages(int count) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            out.append("layout(std430, binding = ").append(i).append(") readonly buffer Page").append(i).append(" { uvec4 page").append(i).append("[]; };\n");
+            out.append("layout(std430, binding = ").append(pageBase + i).append(") readonly buffer Page").append(i).append(" { uvec4 page").append(i).append("[]; };\n");
         }
         out.append("uvec4 fetchVertex(int i) {\n    int l = i & ").append((1 << VERTEX_SHIFT) - 1).append(";\n    switch (i >> ").append(VERTEX_SHIFT).append(") {\n");
         for (int i = 0; i < count; i++) {

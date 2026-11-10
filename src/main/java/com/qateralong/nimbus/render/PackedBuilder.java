@@ -29,6 +29,9 @@ public final class PackedBuilder extends BufferBuilder {
     private final float[] v = new float[4];
     private final int[] color = new int[4];
     private final int[] light = new int[4];
+    // shader pack mode: color word = tint rgb565 | ambient occlusion (7 bits) | block id index (9 bits)
+    private final boolean pack = com.qateralong.nimbus.pack.BlockIds.on;
+    private final float[] ao = {1.0F, 1.0F, 1.0F, 1.0F};
     private final Vector3f scratch = new Vector3f();
     private long[] sprites;
     private int corner;
@@ -49,6 +52,7 @@ public final class PackedBuilder extends BufferBuilder {
         this.y[c] = py;
         this.z[c] = pz;
         this.color[c] = -1;
+        this.ao[c] = 1.0F;
         this.u[c] = 0.0F;
         this.v[c] = 0.0F;
         this.light[c] = 0;
@@ -135,15 +139,17 @@ public final class PackedBuilder extends BufferBuilder {
             float cr;
             float cg;
             float cb;
+            float shade = this.pack ? 1.0F : brightness[i];
+            this.ao[i] = this.pack ? brightness[i] : 1.0F;
             if (readColor) {
                 int vertexColor = vertices[o + 3];
-                cr = (float) (vertexColor & 0xFF) * brightness[i] * r;
-                cg = (float) (vertexColor >> 8 & 0xFF) * brightness[i] * g;
-                cb = (float) (vertexColor >> 16 & 0xFF) * brightness[i] * b;
+                cr = (float) (vertexColor & 0xFF) * shade * r;
+                cg = (float) (vertexColor >> 8 & 0xFF) * shade * g;
+                cb = (float) (vertexColor >> 16 & 0xFF) * shade * b;
             } else {
-                cr = brightness[i] * r * 255.0F;
-                cg = brightness[i] * g * 255.0F;
-                cb = brightness[i] * b * 255.0F;
+                cr = shade * r * 255.0F;
+                cg = shade * g * 255.0F;
+                cb = shade * b * 255.0F;
             }
             matrix.transformPosition(Float.intBitsToFloat(vertices[o]), Float.intBitsToFloat(vertices[o + 1]), Float.intBitsToFloat(vertices[o + 2]), position);
             this.x[i] = position.x;
@@ -227,7 +233,7 @@ public final class PackedBuilder extends BufferBuilder {
             MemoryUtil.memPutInt(t, position(this.x[i]) | position(this.y[i]) << 16);
             MemoryUtil.memPutInt(t + 4, position(this.z[i]) | texture(this.u[i]) << 16);
             MemoryUtil.memPutInt(t + 8, texture(this.v[i]) | block << 16 | sky << 24);
-            MemoryUtil.memPutInt(t + 12, this.color[i]);
+            MemoryUtil.memPutInt(t + 12, this.pack ? packColor(this.color[i], this.ao[i], com.qateralong.nimbus.pack.BlockIds.index()) : this.color[i]);
         }
         this.counts[group] = index + 1;
         if (sprite >= 0) {
@@ -236,6 +242,15 @@ public final class PackedBuilder extends BufferBuilder {
             }
             this.sprites[sprite >>> 6] |= 1L << (sprite & 63);
         }
+    }
+
+    // abgr color (r in the low byte) to rgb565 in the high half, occlusion and the block id index below
+    private static int packColor(int abgr, float ao, int index) {
+        int r = (abgr & 0xFF) >> 3;
+        int g = (abgr >> 8 & 0xFF) >> 2;
+        int b = (abgr >> 16 & 0xFF) >> 3;
+        int occlusion = Math.max(0, Math.min(127, Math.round(ao * 127.0F)));
+        return r << 27 | g << 21 | b << 16 | occlusion << 9 | index & 511;
     }
 
     private static int position(float value) {

@@ -102,6 +102,9 @@ public abstract class ModelCubeMixin implements com.qateralong.nimbus.render.Ent
             out[i * 3 + 2] = matrix.m02() * x + matrix.m12() * y + matrix.m22() * z + matrix.m32();
         }
         int[] indices = this.nimbus$indices;
+        if (com.qateralong.nimbus.pack.BlockIds.on) {
+            light = com.qateralong.nimbus.pack.BlockIds.tag(light);
+        }
         if (NIMBUS_LITTLE_ENDIAN && consumer instanceof com.qateralong.nimbus.render.FastVertices fast) {
             long base = fast.nimbus$reserve(com.mojang.blaze3d.vertex.DefaultVertexFormat.NEW_ENTITY, indices.length);
             if (base != 0L) {

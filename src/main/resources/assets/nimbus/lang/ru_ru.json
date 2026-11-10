@@ -296,5 +296,12 @@
   "nimbus.bug.saved": "%s сохранён",
   "nimbus.bug.failed": "Не удалось сохранить отчёт, подробности в логе",
   "nimbus.bug.chat": "[Nimbus] %s сохранён в %s — скинь файл разработчику",
-  "nimbus.bug.hint": "[Nimbus %s] Тестовая версия: увидел баг — жми %s, отчёт сохранится в папку nimbus-bugs"
+  "nimbus.bug.hint": "[Nimbus %s] Тестовая версия: увидел баг — жми %s, отчёт сохранится в папку nimbus-bugs",
+  "nimbus.tab.shaders": "Шейдеры",
+  "nimbus.group.shader_packs": "Шейдерпак",
+  "nimbus.option.shader_pack": "Шейдерпак",
+  "nimbus.option.shader_pack.tip": "Шейдерпаки OptiFine/Iris из папки shaderpacks, их запускает сам Nimbus (Iris и Sodium не нужны). Экспериментально.",
+  "nimbus.shader_pack.off": "Выкл",
+  "nimbus.option.shader_options": "Настройки шейдерпака...",
+  "nimbus.option.shader_options.tip": "Собственные настройки пака (качество, эффекты). Хранятся рядом с паком, их понимают и Iris, и OptiFine."
 }

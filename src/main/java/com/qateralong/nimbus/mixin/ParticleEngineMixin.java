@@ -50,6 +50,16 @@ public abstract class ParticleEngineMixin {
         return original.call(builder);
     }
 
+    // particles.ordering of a shader pack: opaque and translucent sheets drawn at different points of the frame
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "render", at = @At(value = "INVOKE", target = "Ljava/util/Map;get(Ljava/lang/Object;)Ljava/lang/Object;"))
+    private Object nimbus$sheet(Map<?, ?> map, Object type, com.llamalad7.mixinextras.injector.wrapoperation.Operation<Object> original) {
+        com.qateralong.nimbus.pack.Pipeline p = com.qateralong.nimbus.pack.Pipeline.get();
+        if (p != null && !p.particleSheet((ParticleRenderType) type)) {
+            return null;
+        }
+        return original.call(map, type);
+    }
+
     @Inject(method = "add(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
     private void nimbus$limit(Particle particle, CallbackInfo ci) {
         if (!Cull.acceptParticle()) {

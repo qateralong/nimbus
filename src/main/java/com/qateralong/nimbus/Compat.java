@@ -42,6 +42,9 @@ public final class Compat {
     }
 
     public static boolean shadersOn() {
+        if (com.qateralong.nimbus.pack.Pipeline.active()) {
+            return true;
+        }
         if (SHADERS == null) {
             return IRIS;
         }

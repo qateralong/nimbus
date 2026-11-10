@@ -82,7 +82,7 @@ public final class EntityInstances {
 
     public static boolean enabled() {
         NimbusConfig config = NimbusConfig.get();
-        return config.enabled && config.entityInstancing && available();
+        return config.enabled && config.entityInstancing && available() && !com.qateralong.nimbus.pack.Pipeline.active();
     }
 
     private static boolean available() {
