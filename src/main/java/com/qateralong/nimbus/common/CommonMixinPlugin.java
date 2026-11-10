@@ -29,6 +29,8 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
         return switch (name) {
             case "StateHolderMixin" -> !FabricLoader.getInstance().isModLoaded("ferritecore") && clientFastStates();
             case "VoxelShapeMixin" -> true;
+            // shares results only, chained with WrapOperation: safe next to Lithium
+            case "FaceShapeMixin" -> true;
             // section counters serve both the collision and the hopper skip
             // content versions and the idle-tick bypass serve hoppers and furnaces
             case "LevelChunkTickingAccessor", "BlockEntityIdleTickMixin" -> !lithium && (CommonConfig.enabled("hopperIdle") || CommonConfig.enabled("furnaceSleep") || CommonConfig.enabled("idleBlockEntities"));
@@ -98,6 +100,7 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "ShulkerIdleMixin", "CrafterIdleMixin", "CampfireIdleMixin" -> "idleBlockEntities";
             case "EntitySupportMixin" -> "supportCache";
             case "EntityFallCacheMixin" -> "fallCache";
+            case "FaceShapeMixin" -> "faceShapes";
             default -> null;
         };
     }

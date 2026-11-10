@@ -73,7 +73,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
             List<RenderType> layers = RenderType.chunkBufferLayers();
             TerrainSlot[] slots = new TerrainSlot[layers.size()];
             for (int i = 0; i < slots.length; i++) {
-                slots[i] = (TerrainSlot) this.buffers.get(layers.get(i));
+                slots[i] = (TerrainSlot) this.nimbus$peek(i, layers);
                 if (slots[i] != null) {
                     slots[i].nimbus$bind(this.nimbus$id, i);
                 }
@@ -83,6 +83,12 @@ public abstract class RenderSectionMixin implements SectionStamp {
         return this.nimbus$slots;
     }
 
+    // without creating it: layers get a buffer only once something is uploaded to them
+    @Unique
+    private VertexBuffer nimbus$peek(int i, List<RenderType> layers) {
+        return this.buffers instanceof com.qateralong.nimbus.render.SectionBufferMap map ? map.peek(i) : this.buffers.get(layers.get(i));
+    }
+
     // Other mods may swap a layer's VertexBuffer for a new one (VanillaBackport closes and replaces buffers of layers
     // that were empty before a move). Uploads then go to the new buffer, which must belong to this section too.
     @Unique
@@ -90,7 +96,7 @@ public abstract class RenderSectionMixin implements SectionStamp {
         TerrainSlot[] slots = this.nimbus$slots;
         List<RenderType> layers = RenderType.chunkBufferLayers();
         for (int i = 0; i < slots.length && i < layers.size(); i++) {
-            VertexBuffer current = this.buffers.get(layers.get(i));
+            VertexBuffer current = this.nimbus$peek(i, layers);
             if (current != slots[i] && current instanceof TerrainSlot slot) {
                 slot.nimbus$bind(this.nimbus$id, i);
                 slots[i] = slot;

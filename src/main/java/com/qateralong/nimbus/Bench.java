@@ -75,7 +75,7 @@ final class Bench {
             return;
         }
         if ("screen".equals(MODE)) {
-            String[] tabs = {"general", "quality", "particles", "entities", "performance"};
+            String[] tabs = {"general", "quality", "objects", "particles", "performance", "advanced"};
             if (ticks == 40) {
                 client.options.guiScale().set(3);
                 client.resizeDisplay();

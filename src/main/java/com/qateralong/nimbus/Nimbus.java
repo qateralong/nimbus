@@ -32,7 +32,7 @@ public class Nimbus implements ClientModInitializer {
             net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("nimbus").ifPresent(container -> Chests.available =
                     net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(
                             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nimbus", "chests"), container,
-                            Component.literal("Nimbus: сундуки"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
+                            Component.translatable("nimbus.pack.chests"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
             net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin.register(plugin -> plugin.modifyModelAfterBake().register((model, context) -> {
                 net.minecraft.client.resources.model.BakedModel entityBlock = com.qateralong.nimbus.render.EntityBlocks.bake(context.topLevelId(), model, context.textureGetter());
                 if (entityBlock != null) {

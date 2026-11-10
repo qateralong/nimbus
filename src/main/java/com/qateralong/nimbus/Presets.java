@@ -34,7 +34,8 @@ public final class Presets {
         c.maxParticles = d.maxParticles;
         c.renderScale = 100;
         c.sharpness = 0;
-        c.fog = false;
+        c.fog = d.fog;
+        c.leavesCulling = d.leavesCulling;
         c.sky = c.weather = c.vignette = c.beaconBeams = c.animatedTextures = c.blockBreakParticles = true;
         c.enabled = true;
         switch (name) {
@@ -58,6 +59,7 @@ public final class Presets {
                 o.mipmapLevels().set(2);
                 o.entityDistanceScaling().set(1.0);
                 c.vignette = false;
+                c.leavesCulling = 1;
                 c.itemDistance = 32;
                 c.detailDistance = 32;
                 c.nameTagDistance = 24;
@@ -81,6 +83,7 @@ public final class Presets {
                 c.vignette = false;
                 c.weather = false;
                 c.animatedTextures = false;
+                c.leavesCulling = 2;
                 scale(c, 0.6);
                 c.mobDistance = 64;
                 c.maxParticles = 1500;
@@ -102,6 +105,7 @@ public final class Presets {
                 c.sky = false;
                 c.beaconBeams = false;
                 c.blockBreakParticles = false;
+                c.leavesCulling = 2;
                 scale(c, 0.4);
                 c.mobDistance = 48;
                 c.maxParticles = 500;
@@ -114,21 +118,22 @@ public final class Presets {
         o.save();
     }
 
+    // from fixed reference distances, not the defaults: those are 0 = as in the game
     private static void scale(NimbusConfig c, double factor) {
-        c.itemDistance = scaled(c.itemDistance, factor);
-        c.experienceDistance = scaled(c.experienceDistance, factor);
-        c.frameDistance = scaled(c.frameDistance, factor);
-        c.armorStandDistance = scaled(c.armorStandDistance, factor);
-        c.paintingDistance = scaled(c.paintingDistance, factor);
-        c.projectileDistance = scaled(c.projectileDistance, factor);
-        c.vehicleDistance = scaled(c.vehicleDistance, factor);
-        c.detailDistance = scaled(c.detailDistance, factor);
-        c.shadowDistance = scaled(c.shadowDistance, factor);
-        c.nameTagDistance = scaled(c.nameTagDistance, factor);
-        c.blockEntityDistance = scaled(c.blockEntityDistance, factor);
-        c.signTextDistance = scaled(c.signTextDistance, factor);
-        c.frameContentDistance = scaled(c.frameContentDistance, factor);
-        c.particleDistance = scaled(c.particleDistance, factor);
+        c.itemDistance = scaled(40, factor);
+        c.experienceDistance = scaled(32, factor);
+        c.frameDistance = scaled(56, factor);
+        c.armorStandDistance = scaled(64, factor);
+        c.paintingDistance = scaled(96, factor);
+        c.projectileDistance = scaled(64, factor);
+        c.vehicleDistance = scaled(96, factor);
+        c.detailDistance = scaled(40, factor);
+        c.shadowDistance = scaled(24, factor);
+        c.nameTagDistance = scaled(32, factor);
+        c.blockEntityDistance = scaled(48, factor);
+        c.signTextDistance = scaled(16, factor);
+        c.frameContentDistance = scaled(32, factor);
+        c.particleDistance = scaled(64, factor);
     }
 
     private static int scaled(int value, double factor) {

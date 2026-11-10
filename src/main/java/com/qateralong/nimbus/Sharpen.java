@@ -20,6 +20,9 @@ public final class Sharpen {
     public static void apply(float partialTick) {
         NimbusConfig config = NimbusConfig.get();
         int strength = config.sharpness;
+        if (Scaler.takeSharpened()) {
+            return;
+        }
         if (!config.enabled || strength <= 0 || failed || Scaler.shadersActive()) {
             return;
         }

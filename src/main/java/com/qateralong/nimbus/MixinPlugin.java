@@ -56,6 +56,9 @@ public class MixinPlugin implements IMixinConfigPlugin {
             return FabricLoader.getInstance().isModLoaded("sodium") && FabricLoader.getInstance().getModContainer("sodium")
                     .map(mod -> mod.getMetadata().getVersion().getFriendlyString().startsWith("0.8.")).orElse(false);
         }
+        if (mixinClassName.endsWith(".ReloadOverlayMixin")) {
+            return !FabricLoader.getInstance().isModLoaded("rrls");
+        }
         if (mixinClassName.endsWith(".FastQuitMixin") || mixinClassName.endsWith(".FastQuitStorageMixin")) {
             return !FabricLoader.getInstance().isModLoaded("fastquit");
         }

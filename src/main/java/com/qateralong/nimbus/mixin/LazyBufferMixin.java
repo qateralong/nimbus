@@ -29,17 +29,24 @@ public abstract class LazyBufferMixin {
 
     @WrapOperation(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/GlStateManager;_glGenBuffers()I"))
     private int nimbus$noBuffer(Operation<Integer> original) {
-        return com.qateralong.nimbus.render.LazyBuffers.creatingSections ? 0 : original.call();
+        return com.qateralong.nimbus.render.LazyBuffers.lazy() ? 0 : original.call();
     }
 
     @WrapOperation(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/GlStateManager;_glGenVertexArrays()I"))
     private int nimbus$noArray(Operation<Integer> original) {
-        return com.qateralong.nimbus.render.LazyBuffers.creatingSections ? 0 : original.call();
+        return com.qateralong.nimbus.render.LazyBuffers.lazy() ? 0 : original.call();
+    }
+
+    @WrapOperation(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;assertOnRenderThread()V"))
+    private void nimbus$anyThread(Operation<Void> original) {
+        if (!com.qateralong.nimbus.render.LazyBuffers.offThread()) {
+            original.call();
+        }
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void nimbus$mark(CallbackInfo ci) {
-        this.nimbus$lazy = com.qateralong.nimbus.render.LazyBuffers.creatingSections;
+        this.nimbus$lazy = com.qateralong.nimbus.render.LazyBuffers.lazy();
     }
 
     @Inject(method = {"bind", "uploadVertexBuffer", "uploadIndexBuffer(Lcom/mojang/blaze3d/vertex/ByteBufferBuilder$Result;)V",

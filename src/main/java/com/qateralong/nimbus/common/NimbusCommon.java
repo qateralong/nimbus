@@ -11,7 +11,7 @@ public final class NimbusCommon implements ModInitializer {
     @Override
     public void onInitialize() {
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("lithium")) {
-            LOGGER.info("Nimbus shared optimizations: Lithium is installed, only fastStates and voxelShapeCache stay on");
+            LOGGER.info("Nimbus shared optimizations: Lithium is installed, only fastStates, voxelShapeCache and faceShapes stay on");
         } else {
             LOGGER.info("Nimbus shared optimizations: {} of {} on", CommonConfig.active(), CommonConfig.OPTIONS.size());
         }

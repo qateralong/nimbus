@@ -287,7 +287,8 @@ public final class Cull {
         return !active || blocks <= 0 || entity instanceof Player || distanceSq(entity.getX(), entity.getY(), entity.getZ()) <= (double) blocks * blocks;
     }
 
-    private static int blockEntityLimit(BlockEntityType<?> type) {
+    private static int blockEntityLimit(BlockEntity blockEntity) {
+        BlockEntityType<?> type = blockEntity.getType();
         int limit = BLOCK_ENTITY_LIMITS.getOrDefault(type, -1);
         if (limit >= 0) {
             return limit;
@@ -295,7 +296,15 @@ public final class Cull {
         NimbusConfig config = NimbusConfig.get();
         var key = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(type);
         Integer blocks = key == null ? null : config.blockEntityDistances.get(key.toString());
-        limit = square(blocks == null ? config.blockEntityDistance : blocks);
+        int distance = blocks == null ? config.blockEntityDistance : blocks;
+        // 64 and more never cuts below the renderer's own distance (vanilla default is 64, beacons and some mods draw farther)
+        if (distance >= 64) {
+            var renderer = Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(blockEntity);
+            if (renderer != null) {
+                distance = Math.max(distance, renderer.getViewDistance());
+            }
+        }
+        limit = square(distance);
         BLOCK_ENTITY_LIMITS.put(type, limit);
         return limit;
     }
@@ -305,7 +314,7 @@ public final class Cull {
             return true;
         }
         blockEntitiesSeen++;
-        int limit = blockEntityLimit(blockEntity.getType());
+        int limit = blockEntityLimit(blockEntity);
         BlockPos pos = blockEntity.getBlockPos();
         if (limit != Integer.MAX_VALUE && distanceSq(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > limit) {
             blockEntitiesCulled++;

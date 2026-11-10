@@ -2,8 +2,8 @@ package com.qateralong.nimbus.render;
 
 import com.mojang.blaze3d.platform.NativeImage;
 
-// Transparent texels of a sprite get the alpha-weighted average colour (in linear space) of its visible ones, alpha kept 0:
-// mipmaps stop pulling in black, solid-rendered cutout blocks (fast leaves) show colour instead of black.
+// Transparent texels of a sprite get the alpha-weighted average colour (in linear space) of its visible ones while mipmaps
+// are built, so smaller levels stop pulling in black; the full-size level keeps its original texels.
 public final class MipFill {
     private static final float[] LINEAR = new float[256];
 
@@ -22,9 +22,10 @@ public final class MipFill {
         return Math.max(0, Math.min(255, Math.round(c * 255.0F)));
     }
 
-    public static void fill(NativeImage image) {
+    // returns the overwritten texels as (x, y, colour) triples so the base level can be restored after mipmapping
+    public static int[] fill(NativeImage image) {
         if (image == null || image.format() != NativeImage.Format.RGBA) {
-            return;
+            return null;
         }
         int width = image.getWidth();
         int height = image.getHeight();
@@ -32,14 +33,14 @@ public final class MipFill {
         float g = 0.0F;
         float b = 0.0F;
         float total = 0.0F;
-        boolean transparent = false;
+        int transparent = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 // ABGR
                 int color = image.getPixelRGBA(x, y);
                 int alpha = color >>> 24;
                 if (alpha == 0) {
-                    transparent = true;
+                    transparent++;
                     continue;
                 }
                 r += LINEAR[color & 0xFF] * alpha;
@@ -48,18 +49,31 @@ public final class MipFill {
                 total += alpha;
             }
         }
-        if (!transparent || total == 0.0F) {
-            return;
+        if (transparent == 0 || total == 0.0F) {
+            return null;
         }
-        // darkened: solid-rendered cutout (fast leaves) keeps its texture's contrast, as with Sodium
+        // darkened: distant solid-rendered cutout (fast leaves) keeps its contrast
         float k = 0.2F / total;
         int average = srgb(r * k) | srgb(g * k) << 8 | srgb(b * k) << 16;
+        int[] saved = new int[transparent * 3];
+        int i = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                if (image.getPixelRGBA(x, y) >>> 24 == 0) {
+                int color = image.getPixelRGBA(x, y);
+                if (color >>> 24 == 0) {
+                    saved[i++] = x;
+                    saved[i++] = y;
+                    saved[i++] = color;
                     image.setPixelRGBA(x, y, average);
                 }
             }
+        }
+        return saved;
+    }
+
+    public static void restore(NativeImage image, int[] saved) {
+        for (int i = 0; i < saved.length; i += 3) {
+            image.setPixelRGBA(saved[i], saved[i + 1], saved[i + 2]);
         }
     }
 }

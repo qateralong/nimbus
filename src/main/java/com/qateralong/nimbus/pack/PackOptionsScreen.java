@@ -21,7 +21,7 @@ public final class PackOptionsScreen extends Screen {
     private static boolean changed;
 
     public PackOptionsScreen(Screen parent, PackOptions options, String screen) {
-        super(Component.literal(screen.isEmpty() ? "Shader options" : options.label("screen." + screen, screen)));
+        super(screen.isEmpty() ? Component.translatable("nimbus.pack.options") : Component.literal(options.label("screen." + screen, screen)));
         this.parent = parent;
         this.options = options;
         this.screen = screen;
@@ -73,8 +73,8 @@ public final class PackOptionsScreen extends Screen {
                 return null;
             }
             String current = this.currentProfile();
-            return Button.builder(Component.literal(this.options.label("profile", "Profile") + ": "
-                    + (current == null ? this.options.label("profile.custom", "Custom") : this.options.label("profile." + current, current))), b -> {
+            return Button.builder(Component.literal(this.options.label("profile", Component.translatable("nimbus.pack.profile").getString()) + ": "
+                    + (current == null ? this.options.label("profile.custom", Component.translatable("nimbus.preset.custom").getString()) : this.options.label("profile." + current, current))), b -> {
                 int next = current == null ? 0 : (names.indexOf(current) + 1) % names.size();
                 for (Map.Entry<String, String> e : this.options.profiles.get(names.get(next)).entrySet()) {
                     if (this.options.options.containsKey(e.getKey())) {

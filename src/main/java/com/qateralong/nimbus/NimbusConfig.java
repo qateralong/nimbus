@@ -20,28 +20,26 @@ public final class NimbusConfig {
     public boolean enabled = true;
     public boolean sectionCulling = true;
     public boolean occlusionCulling = true;
-    public int itemDistance = 40;
-    public int experienceDistance = 32;
-    public int frameDistance = 56;
-    public int armorStandDistance = 64;
-    public int paintingDistance = 96;
-    public int projectileDistance = 64;
-    public int vehicleDistance = 96;
+    public int itemDistance = 0;
+    public int experienceDistance = 0;
+    public int frameDistance = 0;
+    public int armorStandDistance = 0;
+    public int paintingDistance = 0;
+    public int projectileDistance = 0;
+    public int vehicleDistance = 0;
     public int mobDistance = 0;
     public int otherDistance = 0;
-    public int detailDistance = 40;
-    public int shadowDistance = 24;
-    public int nameTagDistance = 32;
-    public int blockEntityDistance = 48;
+    public int detailDistance = 0;
+    public int shadowDistance = 0;
+    public int nameTagDistance = 0;
+    public int blockEntityDistance = 64;
     public Map<String, Integer> blockEntityDistances = new LinkedHashMap<>(Map.of(
-            "minecraft:beacon", 0, "minecraft:end_gateway", 0, "minecraft:end_portal", 0, "minecraft:conduit", 64,
-            "minecraft:banner", 64, "minecraft:lectern", 32, "minecraft:enchanting_table", 32, "minecraft:campfire", 32,
-            "minecraft:soul_campfire", 32, "minecraft:brushable_block", 32));
-    public int signTextDistance = 16;
-    public int frameContentDistance = 32;
+            "minecraft:beacon", 0, "minecraft:end_gateway", 0, "minecraft:end_portal", 0));
+    public int signTextDistance = 0;
+    public int frameContentDistance = 0;
     public boolean particleCulling = true;
-    public int particleDistance = 64;
-    public int maxParticles = 6000;
+    public int particleDistance = 0;
+    public int maxParticles = 0;
     public int blockEntityTickDistance = 64;
     public List<String> alwaysTick = new ArrayList<>(List.of("minecraft:beacon", "minecraft:end_gateway", "minecraft:jukebox"));
     public int entityTickDistance = 48;
@@ -79,7 +77,7 @@ public final class NimbusConfig {
     public boolean particleLightCache = true;
     public boolean particleInstancing = true;
     public boolean entityInstancing = true;
-    public boolean lod = true;
+    public boolean lod = false;
     // file or folder name in .minecraft/shaderpacks, empty = off
     public String shaderPack = "";
     public int lodDistance = 48;
@@ -91,7 +89,7 @@ public final class NimbusConfig {
     public boolean bellModels = true;
     public boolean potModels = true;
     public boolean sky = true;
-    public boolean fog = false;
+    public boolean fog = true;
     public boolean weather = true;
     public boolean vignette = true;
     public boolean beaconBeams = true;
@@ -111,6 +109,7 @@ public final class NimbusConfig {
     public boolean renderPaintings = true;
     public boolean toasts = true;
     public boolean fastQuit = true;
+    public boolean quietReload = true;
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
     public boolean fastStates = true;
@@ -120,13 +119,15 @@ public final class NimbusConfig {
     public int afkFps = 10;
     public int backgroundVolume = 100;
     public boolean chestModels = true;
-    public int leavesCulling = 1;
+    public int leavesCulling = 0;
     public boolean beaconCulling = true;
     public boolean signBackCulling = true;
     public boolean dedupModels = true;
+    public boolean mipFill = false;
+    public boolean lazySearch = true;
     public List<String> disabledParticles = new ArrayList<>();
     public List<String> disabledAnimations = new ArrayList<>();
-    public boolean debugLine = true;
+    public boolean debugLine = false;
     public int configVersion = 0;
 
     public static NimbusConfig get() {
@@ -151,14 +152,44 @@ public final class NimbusConfig {
         return instance;
     }
 
-    private static final int CONFIG_VERSION = 2;
+    private static final int CONFIG_VERSION = 3;
 
     // 2: own terrain engine on by default (it falls back to vanilla on its own when unsupported or Sodium is present)
     private void migrate() {
         if (this.configVersion < 2) {
             this.terrainRenderer = true;
         }
+        if (this.configVersion < 3) {
+            this.invisibleDefaults();
+        }
         this.configVersion = CONFIG_VERSION;
+    }
+
+    // 3: defaults change nothing visible; values still at the old defaults move to the new ones
+    private void invisibleDefaults() {
+        NimbusConfig d = new NimbusConfig();
+        if (this.itemDistance == 40) this.itemDistance = d.itemDistance;
+        if (this.experienceDistance == 32) this.experienceDistance = d.experienceDistance;
+        if (this.frameDistance == 56) this.frameDistance = d.frameDistance;
+        if (this.armorStandDistance == 64) this.armorStandDistance = d.armorStandDistance;
+        if (this.paintingDistance == 96) this.paintingDistance = d.paintingDistance;
+        if (this.projectileDistance == 64) this.projectileDistance = d.projectileDistance;
+        if (this.vehicleDistance == 96) this.vehicleDistance = d.vehicleDistance;
+        if (this.detailDistance == 40) this.detailDistance = d.detailDistance;
+        if (this.shadowDistance == 24) this.shadowDistance = d.shadowDistance;
+        if (this.nameTagDistance == 32) this.nameTagDistance = d.nameTagDistance;
+        if (this.blockEntityDistance == 48) this.blockEntityDistance = d.blockEntityDistance;
+        if (this.signTextDistance == 16) this.signTextDistance = d.signTextDistance;
+        if (this.frameContentDistance == 32) this.frameContentDistance = d.frameContentDistance;
+        if (this.particleDistance == 64) this.particleDistance = d.particleDistance;
+        if (this.maxParticles == 6000) this.maxParticles = d.maxParticles;
+        if (this.leavesCulling == 1) this.leavesCulling = d.leavesCulling;
+        this.fog = true;
+        this.lod = false;
+        this.debugLine = false;
+        Map<String, Integer> old = Map.of("minecraft:conduit", 64, "minecraft:banner", 64, "minecraft:lectern", 32, "minecraft:enchanting_table", 32,
+                "minecraft:campfire", 32, "minecraft:soul_campfire", 32, "minecraft:brushable_block", 32);
+        old.forEach((key, value) -> this.blockEntityDistances.remove(key, value));
     }
 
     public void save() {

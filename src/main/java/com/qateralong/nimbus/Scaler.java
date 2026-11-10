@@ -11,6 +11,7 @@ import org.lwjgl.opengl.GL30;
 public final class Scaler {
     private static RenderTarget target;
     private static boolean active;
+    private static boolean sharpened;
 
     private Scaler() {
     }
@@ -24,6 +25,13 @@ public final class Scaler {
 
     public static int viewportHeight(int height) {
         return active && height == fullHeight ? target.height : height;
+    }
+
+    // true once after a frame whose upscale already sharpened the world
+    public static boolean takeSharpened() {
+        boolean was = sharpened;
+        sharpened = false;
+        return was;
     }
 
     public static RenderTarget redirect() {
@@ -74,6 +82,11 @@ public final class Scaler {
         }
         active = false;
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        NimbusConfig config = NimbusConfig.get();
+        if (config.sharpness > 0 && Upscale.draw(target, main, config.sharpness / 100.0F, config.sharpUpscale)) {
+            sharpened = true;
+            return;
+        }
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, target.frameBufferId);
         GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, main.frameBufferId);
         GL30.glBlitFramebuffer(0, 0, target.width, target.height, 0, 0, main.width, main.height, GL11.GL_COLOR_BUFFER_BIT,

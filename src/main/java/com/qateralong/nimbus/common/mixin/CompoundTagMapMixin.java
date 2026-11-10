@@ -20,7 +20,8 @@ public abstract class CompoundTagMapMixin {
 
     @ModifyArg(method = "<init>()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/nbt/CompoundTag;<init>(Ljava/util/Map;)V"))
     private static Map<String, Tag> nimbus$map(Map<String, Tag> tags) {
-        return new Object2ObjectOpenHashMap<>();
+        // most tags hold a handful of entries: the default capacity would spend two 33-slot arrays on each
+        return new Object2ObjectOpenHashMap<>(4);
     }
 
     /**
