@@ -28,6 +28,7 @@
     "CubeShapeCoordsMixin",
     "DirectionOppositeMixin",
     "PaletteLockMixin",
+    "PaletteConfigMixin",
     "PortalSearchMixin",
     "RedstoneWireMixin",
     "VoxelCollideMixin",

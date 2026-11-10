@@ -135,6 +135,8 @@
   "nimbus.option.render_paintings.tip": "Draw paintings at all.",
   "nimbus.option.toasts": "Toasts",
   "nimbus.option.toasts.tip": "Advancement, recipe and other toasts.",
+  "nimbus.option.fast_quit": "Fast world quit",
+  "nimbus.option.fast_quit.tip": "Leaving a singleplayer world goes straight to the menu; the world finishes saving in the background.",
   "nimbus.option.steady_debug": "Steady F3",
   "nimbus.option.steady_debug.tip": "Debug screen updates every 100 ms instead of every frame, so it stops eating FPS.",
   "nimbus.option.fps_overlay": "FPS counter",

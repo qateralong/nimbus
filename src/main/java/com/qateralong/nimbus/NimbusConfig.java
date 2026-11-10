@@ -110,6 +110,7 @@ public final class NimbusConfig {
     public boolean renderArmorStands = true;
     public boolean renderPaintings = true;
     public boolean toasts = true;
+    public boolean fastQuit = true;
     public boolean steadyDebug = true;
     public int fpsOverlay = 0;
     public boolean fastStates = true;

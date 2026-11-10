@@ -135,6 +135,8 @@
   "nimbus.option.render_paintings.tip": "Рисовать картины вообще.",
   "nimbus.option.toasts": "Всплывающие уведомления",
   "nimbus.option.toasts.tip": "Достижения, рецепты и прочие уведомления в углу.",
+  "nimbus.option.fast_quit": "Быстрый выход из мира",
+  "nimbus.option.fast_quit.tip": "Выход из одиночного мира сразу в меню, мир досохраняется в фоне.",
   "nimbus.option.steady_debug": "Стабильный F3",
   "nimbus.option.steady_debug.tip": "Экран отладки обновляется раз в 100 мс, а не каждый кадр — он перестаёт съедать FPS.",
   "nimbus.option.fps_overlay": "Счётчик FPS",

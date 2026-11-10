@@ -63,7 +63,7 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "GameEventDispatchMixin", "LevelChunkListenersAccessor" -> "gameEvents";
             case "CubeShapeCoordsMixin" -> "shapeCoords";
             case "DirectionOppositeMixin" -> "directionOpposite";
-            case "PaletteLockMixin" -> "paletteLocks";
+            case "PaletteLockMixin", "PaletteConfigMixin" -> "paletteLocks";
             case "PortalSearchMixin" -> "portalSearch";
             case "RedstoneWireMixin" -> "redstoneWire";
             case "VoxelCollideMixin" -> "fastCollide";

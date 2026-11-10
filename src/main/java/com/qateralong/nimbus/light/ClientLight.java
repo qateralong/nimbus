@@ -557,6 +557,14 @@ public final class ClientLight extends LevelLightEngine {
             this.clearCache();
             return 0;
         }
+        // published light arrays are never written: the same arrays around the section as at its last check mean
+        // the same answer
+        long key = SectionPos.asLong(sx, sy, sz);
+        long print = this.fingerprint(baseX, baseZ, index);
+        if (fix && this.clean.get(key) == print) {
+            this.clearCache();
+            return 0;
+        }
         for (int y = baseY; y < baseY + 16; y++) {
             for (int z = baseZ; z < baseZ + 16; z++) {
                 for (int x = baseX; x < baseX + 16; x++) {
@@ -572,8 +580,32 @@ public final class ClientLight extends LevelLightEngine {
         this.clearCache();
         if (fix) {
             healedSpots += found;
+            // fixes change the arrays; spots that stay with the same arrays are not ours to fix, no use looking again
+            if (this.clean.size() > 4096) {
+                this.clean.clear();
+            }
+            this.clean.put(key, print);
         }
         return found;
+    }
+
+    private final it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap clean = new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+
+    private long fingerprint(int baseX, int baseZ, int index) {
+        long h = 1;
+        for (int i = 0; i < 5; i++) {
+            LightColumn c = this.column(baseX + (i == 1 ? 16 : i == 2 ? -16 : 0), baseZ + (i == 3 ? 16 : i == 4 ? -16 : 0));
+            if (c == null) {
+                h = h * 31 + 7;
+                continue;
+            }
+            for (int d = -1; d <= 1; d++) {
+                int j = index + d;
+                h = h * 1_000_003L + (j < 0 || j >= this.sections ? 0 : System.identityHashCode(c.block[j]));
+            }
+            h = h * 31 + System.identityHashCode(c);
+        }
+        return h;
     }
 
     // no block light in the section or next to it and nothing in it that glows: nothing can be too dark

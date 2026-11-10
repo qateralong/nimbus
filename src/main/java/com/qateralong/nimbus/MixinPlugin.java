@@ -56,6 +56,12 @@ public class MixinPlugin implements IMixinConfigPlugin {
             return FabricLoader.getInstance().isModLoaded("sodium") && FabricLoader.getInstance().getModContainer("sodium")
                     .map(mod -> mod.getMetadata().getVersion().getFriendlyString().startsWith("0.8.")).orElse(false);
         }
+        if (mixinClassName.endsWith(".FastQuitMixin") || mixinClassName.endsWith(".FastQuitStorageMixin")) {
+            return !FabricLoader.getInstance().isModLoaded("fastquit");
+        }
+        if (mixinClassName.endsWith(".MipFillMixin") && !mixinClassName.endsWith(".SodiumMipFillMixin")) {
+            return !FabricLoader.getInstance().isModLoaded("sodium");
+        }
         if (mixinClassName.endsWith(".SodiumOcclusionMixin")) {
             return FabricLoader.getInstance().isModLoaded("sodium");
         }
@@ -74,6 +80,9 @@ public class MixinPlugin implements IMixinConfigPlugin {
         }
         if (mixinClassName.endsWith(".VertexBufferMixin") || mixinClassName.endsWith(".VertexFormatMixin")) {
             return this.streamUploads && !FabricLoader.getInstance().isModLoaded("immediatelyfast");
+        }
+        if (mixinClassName.endsWith(".MultipartPredicateMixin")) {
+            return this.dedupModels && !FabricLoader.getInstance().isModLoaded("ferritecore");
         }
         if (mixinClassName.endsWith(".BakedQuadMixin") || mixinClassName.endsWith(".ModelManagerMixin")) {
             return this.dedupModels;

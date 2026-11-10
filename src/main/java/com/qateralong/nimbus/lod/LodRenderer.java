@@ -73,7 +73,12 @@ public final class LodRenderer {
 
     public static boolean active() {
         NimbusConfig config = NimbusConfig.get();
-        return config.enabled && config.lod && !com.qateralong.nimbus.Compat.shadersOn();
+        if (!config.enabled || !config.lod || com.qateralong.nimbus.Compat.shadersOn()) {
+            return false;
+        }
+        // a height field of a world with a roof (the Nether) is that roof
+        var level = net.minecraft.client.Minecraft.getInstance().level;
+        return level == null || !level.dimensionType().hasCeiling();
     }
 
     public static float depthFar(float vanilla) {

@@ -91,6 +91,7 @@ public final class NimbusPages {
         toggle(hud, "debug_line", c -> c.debugLine, (c, v) -> c.debugLine = v);
         toggle(hud, "steady_debug", c -> c.steadyDebug, (c, v) -> c.steadyDebug = v);
         toggle(hud, "toasts", c -> c.toasts, (c, v) -> c.toasts = v);
+        toggle(hud, "fast_quit", c -> c.fastQuit, (c, v) -> c.fastQuit = v);
         hud.add(slider("fps_overlay", 0, 2, 1, c -> c.fpsOverlay, (c, v) -> c.fpsOverlay = v, "corner"));
 
         OptionPage quality = page(mod, "quality");
