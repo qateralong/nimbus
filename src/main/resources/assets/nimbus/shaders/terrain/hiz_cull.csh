@@ -34,6 +34,20 @@ uniform vec3 CameraFrac;
 uniform sampler2D Pyramid;
 uniform ivec2 PyramidSize;
 uniform int PyramidLevels;
+uniform vec4 Planes[6];
+
+// the lists hold the whole widened search: the frustum test happens here, every pass
+bool inFrustum(ivec3 origin) {
+    vec3 low = vec3(origin - CameraBlock) - CameraFrac;
+    vec3 high = low + 16.0;
+    for (int p = 0; p < 6; p++) {
+        vec3 far = mix(low, high, greaterThanEqual(Planes[p].xyz, vec3(0.0)));
+        if (dot(Planes[p].xyz, far) + Planes[p].w < 0.0) {
+            return false;
+        }
+    }
+    return true;
+}
 
 bool occluded(ivec3 origin) {
     vec3 low = vec3(origin - CameraBlock) - CameraFrac;
@@ -81,22 +95,30 @@ void main() {
     uint at = CommandBase + i * 5u;
     uint id = commands[at + 4u];
     bool before = visiblePrev[id] != 0u;
+    bool inside = inFrustum(origins[id].xyz);
     if (Mode == 0) {
-        if (!before) {
-            commands[at + 1u] = 0u;
-        }
+        commands[at + 1u] = before && inside ? 1u : 0u;
         return;
     }
     if (Mode == 3) {
-        visibleNext[id] = 1u;
-        commands[at + 1u] = before ? 0u : 1u;
+        visibleNext[id] = inside ? 1u : 0u;
+        commands[at + 1u] = inside && !before ? 1u : 0u;
+        return;
+    }
+    if (!inside) {
+        visibleNext[id] = 0u;
+        commands[at + 1u] = 0u;
         return;
     }
     bool hidden = occluded(origins[id].xyz);
+    if (Mode == 1) {
+        // in-frustum opaque quads, against which the culled share is judged
+        atomicAdd(stats[StatsSlot + 2u], commands[at] / 6u);
+    }
     visibleNext[id] = hidden ? 0u : 1u;
     bool draw = Mode == 2 ? !hidden : (!hidden && !before);
     commands[at + 1u] = draw ? 1u : 0u;
-    if (hidden) {
+    if (hidden && Mode == 1) {
         atomicAdd(stats[StatsSlot], 1u);
         atomicAdd(stats[StatsSlot + 1u], commands[at] / 6u);
     }

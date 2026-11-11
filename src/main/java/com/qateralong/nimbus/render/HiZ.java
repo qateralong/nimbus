@@ -22,6 +22,14 @@ import org.lwjgl.system.MemoryUtil;
 // Two-phase occlusion: draw last frame's visible set, build Hi-Z from this frame's depth, test and draw the rest.
 final class HiZ {
     private static final int SLOTS = 4;
+    // per slot: culled draws, culled quads, in-frustum quads
+    private static final int STRIDE = 12;
+    // below this share of in-frustum quads culled, the passes cost more than they save
+    private static final float WORTH = 0.12F;
+    private static float worth = 1.0F;
+    private static int judged;
+    private static int offUntil;
+    private static int lastSelect = Integer.MIN_VALUE;
     private static final int MODE_SELECT = 0;
     private static final int MODE_OPAQUE = 1;
     private static final int MODE_TRANSLUCENT = 2;
@@ -41,6 +49,7 @@ final class HiZ {
     private static int cullFrac;
     private static int cullSize;
     private static int cullLevels;
+    private static int cullPlanes;
     private static int pyramid;
     private static int sourceWidth;
     private static int sourceHeight;
@@ -70,6 +79,23 @@ final class HiZ {
         return init();
     }
 
+    // adaptive: open views where little is hidden skip the passes for a while, then try again
+    static boolean wanted(int frame) {
+        return frame >= offUntil || frame < offUntil - 10_000;
+    }
+
+    private static void judge(int frame, long inside) {
+        if (inside <= 0) {
+            return;
+        }
+        worth = worth * 0.9F + (float) culledQuads / inside * 0.1F;
+        if (++judged >= 40 && worth < WORTH) {
+            offUntil = frame + 180;
+            judged = 0;
+            worth = 1.0F;
+        }
+    }
+
     private static boolean init() {
         if (failed) {
             return false;
@@ -92,20 +118,21 @@ final class HiZ {
             cullFrac = GL20.glGetUniformLocation(cull, "CameraFrac");
             cullSize = GL20.glGetUniformLocation(cull, "PyramidSize");
             cullLevels = GL20.glGetUniformLocation(cull, "PyramidLevels");
+            cullPlanes = GL20.glGetUniformLocation(cull, "Planes");
             GlStateManager._glUseProgram(cull);
             GL20.glUniform1i(GL20.glGetUniformLocation(cull, "Pyramid"), 0);
             GlStateManager._glUseProgram(0);
             stats = GlStateManager._glGenBuffers();
             GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, stats);
             int flags = GL30.GL_MAP_READ_BIT | GL30.GL_MAP_WRITE_BIT | GL44.GL_MAP_PERSISTENT_BIT | GL44.GL_MAP_COHERENT_BIT;
-            GL44.glBufferStorage(GL43.GL_SHADER_STORAGE_BUFFER, SLOTS * 8L, flags);
-            ByteBuffer mapped = GL30.glMapBufferRange(GL43.GL_SHADER_STORAGE_BUFFER, 0, SLOTS * 8L, flags);
+            GL44.glBufferStorage(GL43.GL_SHADER_STORAGE_BUFFER, SLOTS * (long) STRIDE, flags);
+            ByteBuffer mapped = GL30.glMapBufferRange(GL43.GL_SHADER_STORAGE_BUFFER, 0, SLOTS * (long) STRIDE, flags);
             GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
             if (mapped == null) {
                 throw new IOException("Hi-Z stats buffer could not be mapped");
             }
             statsAddress = MemoryUtil.memAddress(mapped);
-            MemoryUtil.memSet(statsAddress, 0, SLOTS * 8L);
+            MemoryUtil.memSet(statsAddress, 0, SLOTS * (long) STRIDE);
             return true;
         } catch (Throwable t) {
             failed = true;
@@ -153,25 +180,35 @@ final class HiZ {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    static void select(Commands[] lists, int[] opaque, int frame) {
+    static void select(Commands[] lists, int[] opaque, int frame, Matrix4f projection, Matrix4f modelView, double x, double y, double z) {
         culling = false;
         captured = false;
         if (!init()) {
             return;
         }
         ensureVisibility();
+        // after a pause the visible sets are stale
+        if (frame != lastSelect + 1) {
+            history = false;
+            MemoryUtil.memSet(statsAddress, 0, SLOTS * (long) STRIDE);
+        }
+        lastSelect = frame;
         if (!history) {
             fillVisible(visibleA);
         }
         int slot = frame & (SLOTS - 1);
         statsFrame = frame;
-        long at = statsAddress + slot * 8L;
+        long at = statsAddress + (long) slot * STRIDE;
         culledDraws = MemoryUtil.memGetInt(at);
         culledQuads = MemoryUtil.memGetInt(at + 4) & 0xFFFFFFFFL;
+        long inside = MemoryUtil.memGetInt(at + 8) & 0xFFFFFFFFL;
         MemoryUtil.memPutInt(at, 0);
         MemoryUtil.memPutInt(at + 4, 0);
+        MemoryUtil.memPutInt(at + 8, 0);
+        judge(frame, inside);
         GlStateManager._glUseProgram(cull);
         bind();
+        frustum(projection, modelView, x, y, z);
         GL20.glUniform1i(cullMode, MODE_SELECT);
         for (int index : opaque) {
             dispatch(lists, index, false);
@@ -180,8 +217,19 @@ final class HiZ {
         culling = true;
     }
 
+    private static void frustum(Matrix4f projection, Matrix4f modelView, double x, double y, double z) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            GL20.glUniform4fv(cullPlanes, stack.floats(GpuFrustum.planes(projection, modelView)));
+        }
+        int bx = (int) Math.floor(x);
+        int by = (int) Math.floor(y);
+        int bz = (int) Math.floor(z);
+        GL20.glUniform3i(cullBlock, bx, by, bz);
+        GL20.glUniform3f(cullFrac, (float) (x - bx), (float) (y - by), (float) (z - bz));
+    }
+
     private static void bind() {
-        GL30.glUniform1ui(cullSlot, (statsFrame & (SLOTS - 1)) * 2);
+        GL30.glUniform1ui(cullSlot, (statsFrame & (SLOTS - 1)) * 3);
         GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, Stream.buffer());
         GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 1, Origins.buffer());
         GL30.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 2, stats);
@@ -252,12 +300,13 @@ final class HiZ {
         captured = true;
     }
 
-    static void test(Commands[] lists, int[] opaque, int translucent) {
+    static void test(Commands[] lists, int[] opaque, int translucent, Matrix4f projection, Matrix4f modelView, double x, double y, double z) {
         if (!culling) {
             return;
         }
         GlStateManager._glUseProgram(cull);
         bind();
+        frustum(projection, modelView, x, y, z);
         if (captured) {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 GL20.glUniformMatrix4fv(cullMvp, false, CURRENT.get(stack.mallocFloat(16)));

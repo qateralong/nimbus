@@ -35,14 +35,13 @@ public class NimbusScreen extends Screen {
     private static final int TEXT = 0xFFE8EAED;
     private static final int TEXT_DIM = 0xFF8C929B;
     private static final int TEXT_OFF = 0xFF5C6168;
-    private static final int PANEL = 0xC0121418;
-    private static final int SIDEBAR_BG = 0x600A0B0D;
-    private static final int CARD = 0x80202329;
-    private static final int HOVER = 0x16FFFFFF;
-    private static final int LINE = 0x14FFFFFF;
-    private static final int TRACK = 0xFF3A3F47;
+    private static final int SIDEBAR_BG = 0xA0000000;
+    private static final int STRIP = 0x90000000;
+    private static final int HOVER = 0x20FFFFFF;
+    private static final int LINE = 0x30FFFFFF;
+    private static final int TRACK = 0xFF50555C;
     private static final int ROW = 20;
-    private static final int GROUP_GAP = 8;
+    private static final int GROUP_GAP = 10;
     private static final int TITLE = 14;
     private static final int BAR = 32;
     private static final Map<OptionGroup, Boolean> COLLAPSED = new IdentityHashMap<>();
@@ -50,7 +49,6 @@ public class NimbusScreen extends Screen {
     private static String lastPage = "general";
 
     private final Screen parent;
-    private final Map<Option<?, ?>, Float> knobs = new IdentityHashMap<>();
     private final List<Hit> hits = new ArrayList<>();
     private List<ModOptions> mods = List.of();
     private OptionPage page;
@@ -65,6 +63,15 @@ public class NimbusScreen extends Screen {
     private Option<?, ?> hovered;
     private Option<?, ?> focused;
     private Component notice;
+    private final Map<Object, Float> hoverFade = new IdentityHashMap<>();
+    private final Map<Object, Float> tickFade = new IdentityHashMap<>();
+    private long lastFrame;
+    private Option<?, ?> tooltipFor;
+    private long tooltipSince;
+    private float step = 1.0F;
+    private float opening;
+    private float switching = 1.0F;
+    private float barY = Float.NaN;
     private int origin;
     private int panelRight;
     private int sidebar;
@@ -74,7 +81,7 @@ public class NimbusScreen extends Screen {
     private int edge;
 
     private enum Kind {
-        PAGE, GROUP, OPTION, CONTROL_LEFT, CONTROL_RIGHT, SLIDER, UNDO, APPLY, DONE
+        PAGE, SHADERS, GROUP, OPTION, RESET, RESET_PAGE, CONTROL_LEFT, CONTROL_RIGHT, SLIDER, UNDO, APPLY, DONE
     }
 
     private record Hit(Kind kind, int x0, int y0, int x1, int y1, Object target) {
@@ -103,7 +110,7 @@ public class NimbusScreen extends Screen {
         int total = Math.min(this.width - 12, 540);
         this.origin = (this.width - total) / 2;
         this.panelRight = this.origin + total;
-        this.sidebar = Mth.clamp(total * 23 / 100, 96, 140);
+        this.sidebar = Mth.clamp(total * 27 / 100, 100, 150);
         int available = total - this.sidebar - 20;
         this.describe = available >= 440 ? Mth.clamp(available * 32 / 100, 130, 180) : 0;
         this.left = this.origin + this.sidebar + 10;
@@ -135,6 +142,28 @@ public class NimbusScreen extends Screen {
             }
         }
         return null;
+    }
+
+    private boolean pageChanged() {
+        for (OptionGroup group : this.page.groups()) {
+            for (Option<?, ?> option : group.options()) {
+                if (option.resettable() && !option.isDefault() && !(option instanceof ActionOption)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean pendingOn(OptionPage page) {
+        for (OptionGroup group : page.groups()) {
+            for (Option<?, ?> option : group.options()) {
+                if (option.changed()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean searching() {
@@ -178,29 +207,46 @@ public class NimbusScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(0, 0, this.width, this.height, 0x60000000);
-        graphics.fill(this.origin, 0, this.panelRight, this.height, PANEL);
+        graphics.fill(0, 0, this.width, this.height, 0x50000000);
         graphics.fill(this.origin, 0, this.origin + this.sidebar, this.height, SIDEBAR_BG);
-        graphics.fill(this.origin + this.sidebar - 1, 0, this.origin + this.sidebar, this.height, LINE);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        this.scroll += (this.scrollTarget - this.scroll) * Math.min(1.0, partialTick * 0.6 + 0.35);
+        long now = System.nanoTime();
+        float seconds = this.lastFrame == 0 ? 0.0F : Math.min(0.1F, (now - this.lastFrame) / 1.0E9F);
+        this.lastFrame = now;
+        boolean animated = animated();
+        this.step = animated ? 1.0F - (float) Math.exp(-seconds * 16.0F) : 1.0F;
+        this.opening = animated ? Math.min(1.0F, this.opening + seconds / 0.22F) : 1.0F;
+        this.switching = animated ? Math.min(1.0F, this.switching + seconds / 0.18F) : 1.0F;
+        this.scroll += (this.scrollTarget - this.scroll) * (animated ? 1.0F - (float) Math.exp(-seconds * 20.0F) : 1.0F);
         if (Math.abs(this.scrollTarget - this.scroll) < 0.5) {
             this.scroll = this.scrollTarget;
         }
         this.hits.clear();
         this.hovered = null;
         this.renderBackground(graphics, mouseX, mouseY, partialTick);
+        float open = ease(this.opening);
+        float page = ease(this.switching);
+        graphics.pose().pushPose();
+        graphics.pose().translate(-(1.0F - open) * 12.0F, 0.0F, 0.0F);
         this.renderSidebar(graphics, mouseX, mouseY);
+        graphics.pose().popPose();
+        graphics.pose().pushPose();
+        graphics.pose().translate((1.0F - page) * 10.0F, (1.0F - open) * 10.0F, 0.0F);
         this.renderContent(graphics, mouseX, mouseY);
         if (this.describe > 0) {
             this.renderDescription(graphics);
         }
+        graphics.pose().popPose();
         this.renderBar(graphics, mouseX, mouseY);
         this.search.render(graphics, mouseX, mouseY, partialTick);
-        if (this.describe == 0 && this.hovered != null && this.hovered.tooltip() != null && this.dragging == null) {
+        if (this.hovered != this.tooltipFor) {
+            this.tooltipFor = this.hovered;
+            this.tooltipSince = now;
+        }
+        if (this.describe == 0 && this.hovered != null && this.hovered.tooltip() != null && this.dragging == null && now - this.tooltipSince > 400_000_000L) {
             graphics.renderTooltip(this.font, this.font.split(this.hovered.tooltip(), 200), mouseX, mouseY);
         }
     }
@@ -210,10 +256,8 @@ public class NimbusScreen extends Screen {
         int x1 = this.origin + this.sidebar;
         graphics.blit(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nimbus", "icon.png"), x0 + 10, 9, 12, 12, 0, 0, 256, 256, 256, 256);
         graphics.drawString(this.font, Component.translatable("nimbus.screen.title"), x0 + 27, 11, TEXT, false);
-        card(graphics, x0 + 8, 26, x1 - 8, 44, this.search.isFocused() ? 0xFF262A31 : 0x80000000);
-        if (this.search.isFocused()) {
-            graphics.fill(x0 + 8, 43, x1 - 8, 44, ACCENT);
-        }
+        graphics.fill(x0 + 8, 26, x1 - 8, 44, STRIP);
+        graphics.fill(x0 + 8, 43, x1 - 8, 44, this.search.isFocused() ? ACCENT : LINE);
         int y = 54;
         long shown = this.mods.stream().filter(mod -> !mod.pages().isEmpty()).count();
         for (ModOptions mod : this.mods) {
@@ -231,18 +275,36 @@ public class NimbusScreen extends Screen {
             }
             for (OptionPage candidate : mod.pages()) {
                 boolean selected = !this.searching() && candidate == this.page;
-                boolean hover = mouseX >= x0 + 6 && mouseX < x1 - 6 && mouseY >= y && mouseY < y + 16;
+                boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + 16;
+                float fade = this.fade(this.hoverFade, candidate, hover || selected);
+                if (fade > 0.0F) {
+                    graphics.fill(x0, y, x1, y + 16, alpha(selected ? 0x30FFFFFF : HOVER, fade));
+                }
                 if (selected) {
-                    card(graphics, x0 + 6, y, x1 - 6, y + 16, 0x1CFFFFFF);
-                    graphics.fill(x0 + 6, y + 4, x0 + 8, y + 12, ACCENT);
-                } else if (hover) {
-                    card(graphics, x0 + 6, y, x1 - 6, y + 16, HOVER);
+                    this.barY = Float.isNaN(this.barY) ? y : this.barY + (y - this.barY) * this.step;
+                    int bar = Math.round(this.barY);
+                    graphics.fill(x0, bar, x0 + 2, bar + 16, ACCENT);
                 }
                 graphics.drawString(this.font, ellipsize(candidate.name(), this.sidebar - 32), x0 + 14, y + 4, selected || hover ? TEXT : TEXT_DIM, false);
-                this.hits.add(new Hit(Kind.PAGE, x0 + 6, y, x1 - 6, y + 16, candidate));
+                if (pendingOn(candidate)) {
+                    graphics.fill(x1 - 12, y + 7, x1 - 9, y + 10, ACCENT);
+                }
+                this.hits.add(new Hit(Kind.PAGE, x0, y, x1, y + 16, candidate));
                 y += 17;
             }
             y += 8;
+        }
+        // shader packs live on their own screen, like Iris
+        if (com.qateralong.nimbus.pack.Pipeline.supported()) {
+            graphics.fill(x0 + 8, y - 4, x1 - 8, y - 3, LINE);
+            boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + 16;
+            if (hover) {
+                graphics.fill(x0, y, x1, y + 16, HOVER);
+            }
+            Component label = Component.translatable("nimbus.shaders.title");
+            graphics.drawString(this.font, label, x0 + 14, y + 4, hover ? TEXT : TEXT_DIM, false);
+            graphics.drawString(this.font, "›", x1 - 12, y + 4, hover ? ACCENT : TEXT_OFF, false);
+            this.hits.add(new Hit(Kind.SHADERS, x0, y, x1, y + 16, null));
         }
     }
 
@@ -309,7 +371,12 @@ public class NimbusScreen extends Screen {
         if (title != null) {
             boolean hover = group != null && inside(mouseX, mouseY, this.left, Math.max(y, top), this.right, Math.min(y + TITLE, bottom)) && y + TITLE > top;
             String chevron = group == null ? "" : collapsed ? "▸ " : hover ? "▾ " : "";
-            graphics.drawString(this.font, Component.literal(chevron).append(title.copy()), this.left + 2, y + 2, hover ? TEXT : TEXT_OFF, false);
+            Component caption = Component.literal(chevron).append(title.copy());
+            graphics.drawString(this.font, caption, this.left + 2, y + 2, hover ? TEXT : TEXT_DIM, false);
+            int rule = this.left + 2 + this.font.width(caption) + 6;
+            if (rule < this.right - 24) {
+                graphics.fill(rule, y + 6, collapsed ? this.right - 18 : this.right, y + 7, LINE);
+            }
             if (collapsed) {
                 String count = String.valueOf(options.size());
                 graphics.drawString(this.font, count, this.right - 4 - this.font.width(count), y + 2, TEXT_OFF, false);
@@ -323,9 +390,6 @@ public class NimbusScreen extends Screen {
             return y + GROUP_GAP;
         }
         int height = options.size() * ROW;
-        if (y + height > top && y < bottom) {
-            card(graphics, this.left, y, this.right, y + height, CARD);
-        }
         for (int i = 0; i < options.size(); i++) {
             int rowY = y + i * ROW;
             if (rowY + ROW <= top || rowY >= bottom) {
@@ -340,35 +404,37 @@ public class NimbusScreen extends Screen {
     private void renderRow(GuiGraphics graphics, int mouseX, int mouseY, Option<?, ?> option, int y, int top, int bottom) {
         boolean enabled = option.isEnabled();
         boolean hover = mouseY >= top && mouseY < bottom && inside(mouseX, mouseY, this.left, y, this.right, y + ROW);
+        graphics.fill(this.left, y, this.right, y + ROW - 1, STRIP);
         if (hover) {
             this.hovered = option;
-            card(graphics, this.left, y, this.right, y + ROW, HOVER);
+        }
+        float fade = this.fade(this.hoverFade, option, hover);
+        if (fade > 0.0F) {
+            graphics.fill(this.left, y, this.right, y + ROW - 1, alpha(HOVER, fade));
         }
         int clipTop = Math.max(y, top);
         int clipBottom = Math.min(y + ROW, bottom);
         this.hits.add(new Hit(Kind.OPTION, this.left, clipTop, this.right, clipBottom, option));
         if (option.changed()) {
-            graphics.fill(this.left, y + 5, this.left + 2, y + ROW - 5, ACCENT);
+            graphics.fill(this.left, y, this.left + 2, y + ROW - 1, ACCENT);
         }
         int width = this.right - this.left;
         int control = Mth.clamp(width * 44 / 100, 70, 150);
         int controlLeft = this.right - 8 - control;
-        graphics.drawString(this.font, ellipsize(option.name(), controlLeft - this.left - 18), this.left + 11, y + 6, enabled ? TEXT : TEXT_OFF, false);
+        int labelColor = !enabled ? TEXT_OFF : option.changed() ? ACCENT : TEXT;
+        int labelEnd = this.label(graphics, option.name(), this.left + 8, y + 6, controlLeft - this.left - 18, labelColor);
+        // a visible reset instead of the hidden right click
+        Component reset = Component.translatable("nimbus.screen.reset");
+        int resetWidth = this.font.width(reset);
+        if (hover && enabled && option.resettable() && !option.isDefault() && !(option instanceof ActionOption) && labelEnd + 10 + resetWidth < controlLeft) {
+            boolean over = inside(mouseX, mouseY, labelEnd + 4, y, labelEnd + 12 + resetWidth, y + ROW - 1);
+            graphics.drawString(this.font, reset, labelEnd + 8, y + 6, over ? ACCENT : TEXT_OFF, false);
+            this.hits.add(new Hit(Kind.RESET, labelEnd + 4, clipTop, labelEnd + 12 + resetWidth, clipBottom, option));
+        }
         int color = enabled ? TEXT : TEXT_OFF;
         if (option instanceof ToggleOption toggle) {
             boolean on = Boolean.TRUE.equals(toggle.value());
-            float knob = this.knobs.getOrDefault(option, on ? 1.0F : 0.0F);
-            knob += ((on ? 1.0F : 0.0F) - knob) * 0.35F;
-            if (Math.abs(knob - (on ? 1 : 0)) < 0.02F) {
-                knob = on ? 1.0F : 0.0F;
-            }
-            this.knobs.put(option, knob);
-            int x1 = this.right - 8;
-            int x0 = x1 - 20;
-            int pill = lerpColor(knob, 0xFF4A505A, enabled ? ACCENT : 0xFF6B4A22);
-            card(graphics, x0, y + 5, x1, y + 15, pill);
-            int kx = x0 + 1 + Math.round(knob * 10);
-            card(graphics, kx, y + 6, kx + 8, y + 14, enabled ? 0xFFF5F5F5 : 0xFF9A9A9A);
+            tickBox(graphics, this.right - 17, y, this.fade(this.tickFade, option, on), enabled ? (hover ? TEXT : TEXT_DIM) : TEXT_OFF, enabled ? ACCENT : TEXT_OFF);
             this.hits.add(new Hit(Kind.CONTROL_RIGHT, controlLeft, clipTop, this.right, clipBottom, option));
         } else if (option instanceof SliderOption slider) {
             int value = slider.value() == null ? slider.min() : slider.value();
@@ -377,9 +443,9 @@ public class NimbusScreen extends Screen {
             int trackLeft = trackRight - Mth.clamp(control - this.font.width(text) - 8, Math.min(40, control / 2), control / 2);
             double fraction = slider.fraction(value);
             int fill = trackLeft + (int) Math.round((trackRight - trackLeft) * fraction);
-            graphics.fill(trackLeft, y + 9, trackRight, y + 11, TRACK);
-            graphics.fill(trackLeft, y + 9, fill, y + 11, enabled ? ACCENT : 0xFF6B4A22);
-            card(graphics, fill - 3, y + 6, fill + 3, y + 14, enabled ? 0xFFF5F5F5 : 0xFF9A9A9A);
+            graphics.fill(trackLeft, y + 9, trackRight, y + 10, TRACK);
+            graphics.fill(trackLeft, y + 9, fill, y + 10, enabled ? ACCENT : TEXT_OFF);
+            graphics.fill(fill - 1, y + 5, fill + 2, y + 14, enabled ? (hover ? 0xFFFFFFFF : TEXT) : TEXT_OFF);
             graphics.drawString(this.font, ellipsize(text, trackLeft - controlLeft - 8), trackLeft - 8 - Math.min(this.font.width(text), trackLeft - controlLeft - 8), y + 6, color, false);
             this.hits.add(new Hit(Kind.SLIDER, trackLeft - 4, clipTop, trackRight + 4, clipBottom, slider));
         } else if (option instanceof CycleOption<?> cycle) {
@@ -397,31 +463,35 @@ public class NimbusScreen extends Screen {
             }
             this.hits.add(new Hit(Kind.CONTROL_LEFT, controlLeft - 4, clipTop, middle, clipBottom, option));
             this.hits.add(new Hit(Kind.CONTROL_RIGHT, middle, clipTop, this.right, clipBottom, option));
-        } else if (option instanceof ActionOption) {
-            Component text = Component.translatable("nimbus.screen.open");
+        } else if (option instanceof ActionOption action) {
+            Component text = action.button() != null ? action.button() : Component.translatable("nimbus.screen.open");
             graphics.drawString(this.font, text, this.right - 8 - this.font.width(text), y + 6, hover && enabled ? ACCENT : TEXT_DIM, false);
             this.hits.add(new Hit(Kind.CONTROL_RIGHT, controlLeft, clipTop, this.right, clipBottom, option));
         }
     }
 
     private void renderDescription(GuiGraphics graphics) {
+        Option<?, ?> option = this.hovered != null ? this.hovered : this.focused;
+        if (option == null) {
+            return;
+        }
         int x0 = this.edge - this.describe;
         int x1 = this.edge;
         int top = 34;
-        Option<?, ?> option = this.hovered != null ? this.hovered : this.focused;
-        graphics.fill(x0, top, x0 + 1, this.height - BAR, LINE);
-        int x = x0 + 10;
+        int x = x0 + 8;
         int wrap = x1 - x - 8;
-        int y = top + 2;
-        if (option == null) {
-            for (FormattedCharSequence line : this.font.split(Component.translatable("nimbus.screen.hint"), wrap)) {
-                graphics.drawString(this.font, line, x, y, TEXT_OFF, false);
-                y += 10;
-            }
-            return;
-        }
+        // measured with the same code that draws it: the box fits its text
+        int bottom = this.describe(null, option, x, top + 8, wrap);
+        graphics.fill(x0, top, x1, bottom + 6, STRIP);
+        this.describe(graphics, option, x, top + 8, wrap);
+    }
+
+    // graphics == null only measures; returns the y below the last line
+    private int describe(GuiGraphics graphics, Option<?, ?> option, int x, int y, int wrap) {
         for (FormattedCharSequence line : this.font.split(option.name(), wrap)) {
-            graphics.drawString(this.font, line, x, y, ACCENT, false);
+            if (graphics != null) {
+                graphics.drawString(this.font, line, x, y, TEXT, false);
+            }
             y += 10;
         }
         y += 4;
@@ -430,7 +500,9 @@ public class NimbusScreen extends Screen {
                 if (y > this.height - BAR - 50) {
                     break;
                 }
-                graphics.drawString(this.font, line, x, y, 0xFFC8CCD2, false);
+                if (graphics != null) {
+                    graphics.drawString(this.font, line, x, y, 0xFFC8CCD2, false);
+                }
                 y += 10;
             }
             y += 6;
@@ -452,9 +524,10 @@ public class NimbusScreen extends Screen {
         if (option.resettable() && !(option instanceof ActionOption)) {
             y = this.meta(graphics, Component.translatable("nimbus.screen.default", this.formatDefault(option)), x, y, wrap);
             if (!option.isDefault()) {
-                this.meta(graphics, Component.translatable("nimbus.screen.reset_hint"), x, y, wrap);
+                y = this.meta(graphics, Component.translatable("nimbus.screen.reset_hint"), x, y, wrap);
             }
         }
+        return y;
     }
 
     @SuppressWarnings("unchecked")
@@ -464,7 +537,9 @@ public class NimbusScreen extends Screen {
 
     private int meta(GuiGraphics graphics, Component text, int x, int y, int wrap) {
         for (FormattedCharSequence line : this.font.split(text, wrap)) {
-            graphics.drawString(this.font, line, x, y, TEXT_DIM, false);
+            if (graphics != null) {
+                graphics.drawString(this.font, line, x, y, TEXT_DIM, false);
+            }
             y += 10;
         }
         return y + 2;
@@ -475,12 +550,20 @@ public class NimbusScreen extends Screen {
         int pending = this.pending();
         int x1 = this.edge;
         x1 = this.button(graphics, mouseX, mouseY, x1, y, CommonComponents.GUI_DONE, Kind.DONE, true, true);
+        // left side: back to defaults for everything on this page (pending until Apply like any change)
+        int textX = this.left + 2;
+        if (!this.searching() && this.page != null && pending == 0 && this.pageChanged()) {
+            Component text = Component.translatable("nimbus.screen.reset_page");
+            int width = Math.max(56, this.font.width(text) + 16);
+            this.button(graphics, mouseX, mouseY, this.left + width, y, text, Kind.RESET_PAGE, true, false);
+            textX = this.left + width + 8;
+        }
         if (pending > 0) {
             x1 = this.button(graphics, mouseX, mouseY, x1 - 6, y, Component.translatable("nimbus.screen.apply"), Kind.APPLY, true, false);
             this.button(graphics, mouseX, mouseY, x1 - 6, y, Component.translatable("nimbus.screen.undo"), Kind.UNDO, true, false);
             graphics.drawString(this.font, Component.translatable("nimbus.screen.pending", pending), this.left + 2, y + 6, ACCENT, false);
         } else if (this.notice != null) {
-            graphics.drawString(this.font, this.notice, this.left + 2, y + 6, TEXT_DIM, false);
+            graphics.drawString(this.font, this.notice, textX, y + 6, TEXT_DIM, false);
         }
     }
 
@@ -488,8 +571,8 @@ public class NimbusScreen extends Screen {
         int width = Math.max(56, this.font.width(text) + 16);
         int x0 = x1 - width;
         boolean hover = active && inside(mouseX, mouseY, x0, y, x1, y + 18);
-        int background = !active ? 0x40202328 : primary ? (hover ? 0xFFF09A35 : ACCENT) : (hover ? 0xFF353A42 : 0xFF262A30);
-        card(graphics, x0, y, x1, y + 18, background);
+        int background = !active ? 0x40000000 : primary ? (hover ? 0xFFF09A35 : ACCENT) : (hover ? 0xC0303030 : 0xC0000000);
+        graphics.fill(x0, y, x1, y + 18, background);
         int color = !active ? TEXT_OFF : primary ? 0xFF1A1206 : TEXT;
         graphics.drawString(this.font, text, x0 + (width - this.font.width(text)) / 2, y + 5, color, false);
         if (active) {
@@ -521,6 +604,9 @@ public class NimbusScreen extends Screen {
         switch (hit.kind()) {
             case PAGE -> {
                 OptionPage target = (OptionPage) hit.target();
+                if (this.page != target) {
+                    this.switching = 0.0F;
+                }
                 this.page = target;
                 lastMod = target.mod().id();
                 lastPage = target.id();
@@ -530,9 +616,27 @@ public class NimbusScreen extends Screen {
                 this.focused = null;
                 return true;
             }
+            case SHADERS -> {
+                this.minecraft.setScreen(new com.qateralong.nimbus.pack.ShaderScreen(this));
+                return true;
+            }
             case GROUP -> {
                 OptionGroup group = (OptionGroup) hit.target();
                 COLLAPSED.put(group, !this.collapsed(group));
+                return true;
+            }
+            case RESET -> {
+                ((Option<?, ?>) hit.target()).reset();
+                return true;
+            }
+            case RESET_PAGE -> {
+                for (OptionGroup group : this.page.groups()) {
+                    for (Option<?, ?> option : group.options()) {
+                        if (option.resettable() && !option.isDefault() && !(option instanceof ActionOption)) {
+                            option.reset();
+                        }
+                    }
+                }
                 return true;
             }
             case UNDO -> {
@@ -584,7 +688,7 @@ public class NimbusScreen extends Screen {
             this.drag(mouseX);
             return true;
         }
-        if (option instanceof ActionOption action && hit.kind() != Kind.OPTION) {
+        if (option instanceof ActionOption action) {
             action.run(this);
             return true;
         }
@@ -614,6 +718,15 @@ public class NimbusScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (!hasShiftDown() && scrollY != 0) {
+            for (Hit hit : this.hits) {
+                if (hit.kind() == Kind.SLIDER && hit.contains(mouseX, mouseY) && hit.target() instanceof SliderOption slider && slider.isEnabled()) {
+                    int value = slider.value() == null ? slider.min() : slider.value();
+                    slider.set(Mth.clamp(value + (scrollY > 0 ? slider.step() : -slider.step()), slider.min(), slider.max()));
+                    return true;
+                }
+            }
+        }
         if (mouseX >= this.left && mouseX < this.right + 6) {
             double max = Math.max(0, this.contentHeight - (this.height - BAR - 34) + 6);
             this.scrollTarget = Mth.clamp(this.scrollTarget - scrollY * ROW * 2, 0, max);
@@ -676,6 +789,28 @@ public class NimbusScreen extends Screen {
         this.minecraft.setScreen(this.parent);
     }
 
+    // draws the name, the search match in accent; returns where the text ends
+    private int label(GuiGraphics graphics, Component name, int x, int y, int width, int color) {
+        String plain = name.getString();
+        String needle = this.query.trim();
+        int at = needle.isEmpty() ? -1 : plain.toLowerCase(Locale.ROOT).indexOf(needle.toLowerCase(Locale.ROOT));
+        if (at < 0 || this.font.width(plain) > width) {
+            FormattedCharSequence shown = ellipsize(name, width);
+            graphics.drawString(this.font, shown, x, y, color, false);
+            return x + this.font.width(shown);
+        }
+        String before = plain.substring(0, at);
+        String match = plain.substring(at, at + needle.length());
+        String after = plain.substring(at + needle.length());
+        graphics.drawString(this.font, before, x, y, color, false);
+        int mx = x + this.font.width(before);
+        graphics.drawString(this.font, match, mx, y, ACCENT, false);
+        graphics.fill(mx, y + 9, mx + this.font.width(match), y + 10, ACCENT);
+        int ax = mx + this.font.width(match);
+        graphics.drawString(this.font, after, ax, y, color, false);
+        return ax + this.font.width(after);
+    }
+
     private FormattedCharSequence ellipsize(Component text, int width) {
         if (this.font.width(text) <= width) {
             return text.getVisualOrderText();
@@ -685,25 +820,47 @@ public class NimbusScreen extends Screen {
         return Component.literal(cut + ellipsis).withStyle(text.getStyle()).getVisualOrderText();
     }
 
+    // 9x9 box from (x, y + 5), a 5x5 square in the middle that grows with fill
+    public static void tickBox(GuiGraphics graphics, int x, int y, float fill, int frame, int color) {
+        int top = y + 5;
+        graphics.fill(x, top, x + 9, top + 1, frame);
+        graphics.fill(x, top + 8, x + 9, top + 9, frame);
+        graphics.fill(x, top + 1, x + 1, top + 8, frame);
+        graphics.fill(x + 8, top + 1, x + 9, top + 8, frame);
+        int size = Math.round(5.0F * fill);
+        if (size > 0) {
+            int offset = (5 - size) / 2;
+            graphics.fill(x + 2 + offset, top + 2 + offset, x + 2 + offset + size, top + 2 + offset + size, color);
+        }
+    }
+
+    private static boolean animated() {
+        return NimbusConfig.get().enabled && NimbusConfig.get().menuAnimations;
+    }
+
+    private static float ease(float t) {
+        float u = 1.0F - t;
+        return 1.0F - u * u * u;
+    }
+
+    private static int alpha(int color, float fade) {
+        return (int) ((color >>> 24) * fade) << 24 | color & 0xFFFFFF;
+    }
+
+    // eases a per-object value towards 0 or 1 at the frame's step
+    private float fade(Map<Object, Float> values, Object key, boolean on) {
+        float target = on ? 1.0F : 0.0F;
+        float value = values.getOrDefault(key, target);
+        value += (target - value) * this.step;
+        if (Math.abs(value - target) < 0.02F) {
+            value = target;
+        }
+        values.put(key, value);
+        return value;
+    }
+
     private static boolean inside(double x, double y, int x0, int y0, int x1, int y1) {
         return x >= x0 && x < x1 && y >= y0 && y < y1;
     }
 
-    private static void card(GuiGraphics graphics, int x0, int y0, int x1, int y1, int color) {
-        if (x1 - x0 < 3 || y1 - y0 < 3) {
-            graphics.fill(x0, y0, x1, y1, color);
-            return;
-        }
-        graphics.fill(x0 + 1, y0, x1 - 1, y0 + 1, color);
-        graphics.fill(x0, y0 + 1, x1, y1 - 1, color);
-        graphics.fill(x0 + 1, y1 - 1, x1 - 1, y1, color);
-    }
-
-    private static int lerpColor(float t, int from, int to) {
-        int a = (int) Mth.lerp(t, from >>> 24, to >>> 24);
-        int r = (int) Mth.lerp(t, from >> 16 & 255, to >> 16 & 255);
-        int g = (int) Mth.lerp(t, from >> 8 & 255, to >> 8 & 255);
-        int b = (int) Mth.lerp(t, from & 255, to & 255);
-        return a << 24 | r << 16 | g << 8 | b;
-    }
 }

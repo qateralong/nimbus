@@ -3,7 +3,8 @@ package com.qateralong.nimbus.render;
 import java.util.Arrays;
 
 public final class SectionData {
-    static final int LAYERS = 8;
+    // vanilla has 5 chunk layers; room for mods that add some, capped at 8 as before
+    static final int LAYERS = Math.min(8, Math.max(5, net.minecraft.client.renderer.RenderType.chunkBufferLayers().size()));
     static int[] mask = new int[4096];
     static boolean[] blockEntities = new boolean[4096];
     static final int START = 0;

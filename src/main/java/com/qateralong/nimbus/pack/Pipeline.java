@@ -302,7 +302,7 @@ public final class Pipeline {
             open(Path.of(path));
         } else {
             String name = com.qateralong.nimbus.NimbusConfig.get().shaderPack;
-            if (name != null && !name.isEmpty()) {
+            if (com.qateralong.nimbus.NimbusConfig.get().shaders && name != null && !name.isEmpty()) {
                 open(folder().resolve(name));
             }
         }

@@ -61,10 +61,8 @@ final class GpuFrustum {
         }
     }
 
-    static void cull(Commands list, Matrix4f projection, Matrix4f modelView, double x, double y, double z) {
-        if (list.count == 0 || list.offset < 0 || !available()) {
-            return;
-        }
+    // six camera-relative planes with slack, as uniform vec4 Planes[6]
+    static float[] planes(Matrix4f projection, Matrix4f modelView) {
         projection.mul(modelView, MVP);
         float[] values = VALUES;
         for (int i = 0; i < 6; i++) {
@@ -74,6 +72,14 @@ final class GpuFrustum {
             values[i * 4 + 2] = PLANE.z;
             values[i * 4 + 3] = PLANE.w + SLACK;
         }
+        return values;
+    }
+
+    static void cull(Commands list, Matrix4f projection, Matrix4f modelView, double x, double y, double z) {
+        if (list.count == 0 || list.offset < 0 || !available()) {
+            return;
+        }
+        float[] values = planes(projection, modelView);
         GlStateManager._glUseProgram(program);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             GL20.glUniform4fv(planes, stack.floats(values));

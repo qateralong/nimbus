@@ -76,7 +76,7 @@ public final class Cull {
         hiddenNext = swap;
         hiddenNext.clear();
         if (DEBUG_ALWAYS || Minecraft.getInstance().getDebugOverlay().showDebugScreen()) {
-            last = (scale < 0.999 || resolution < 0.999 ? String.format("[дальность %.0f%%, разрешение %.0f%%] ", scale * 100, resolution * 100) : "") + String.format("Nimbus: сущн. %d/%d · БС %d/%d · частицы %d/%d · тиков %d · лучи %d/%d за %.1f мс",
+            last = (scale < 0.999 || resolution < 0.999 ? String.format("[distance %.0f%%, resolution %.0f%%] ", scale * 100, resolution * 100) : "") + String.format("Nimbus: entities %d/%d · block entities %d/%d · particles %d/%d · ticked %d · rays %d/%d in %.1f ms",
                     entitiesCulled, entitiesSeen, blockEntitiesCulled, blockEntitiesSeen, particlesCulled, particlesSeen, ticksShown,
                     Occlusion.lastHidden, Occlusion.lastTargets, Occlusion.lastNanos / 1e6);
         }

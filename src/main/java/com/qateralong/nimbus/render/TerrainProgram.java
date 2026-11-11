@@ -17,6 +17,10 @@ final class TerrainProgram {
     final int alphaCutoff;
     final int cameraBlock;
     final int cameraFrac;
+    final int fadeNow;
+    final int fadeTime;
+    final int dynLights;
+    final int dynCount;
 
     TerrainProgram(boolean cutout) throws IOException {
         int vertex = compile(GL20.GL_VERTEX_SHADER, source("terrain.vsh").replace("//PAGES", Arena.shaderPages(Arena.maxPages)));
@@ -44,6 +48,10 @@ final class TerrainProgram {
         this.alphaCutoff = GL20.glGetUniformLocation(this.id, "AlphaCutoff");
         this.cameraBlock = GL20.glGetUniformLocation(this.id, "CameraBlock");
         this.cameraFrac = GL20.glGetUniformLocation(this.id, "CameraFrac");
+        this.fadeNow = GL20.glGetUniformLocation(this.id, "FadeNow");
+        this.fadeTime = GL20.glGetUniformLocation(this.id, "FadeTime");
+        this.dynLights = GL20.glGetUniformLocation(this.id, "DynLights");
+        this.dynCount = GL20.glGetUniformLocation(this.id, "DynCount");
         GlStateManager._glUseProgram(this.id);
         GL20.glUniform1i(GL20.glGetUniformLocation(this.id, "Sampler0"), 0);
         GL20.glUniform1i(GL20.glGetUniformLocation(this.id, "Sampler2"), 2);

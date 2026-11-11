@@ -21,7 +21,7 @@ public final class SectionEvents {
     private static final String[] NAMES = {"?", "upload packed", "upload packer", "upload vanilla (not stored)", "stored", "dropped: task cancelled",
             "dropped: buffer closed", "dropped: storage full", "released: compiled without layer", "released: buffer closed", "reset", "compiled",
             "repair rebuild", "upload while engine inactive"};
-    private static final int SLOTS = 12;
+    private static final int SLOTS = 8;
     private static long[] events = new long[0];
     private static byte[] heads = new byte[0];
 

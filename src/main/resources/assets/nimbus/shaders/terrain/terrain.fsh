@@ -10,6 +10,7 @@ uniform float AlphaCutoff;
 in float vertexDistance;
 in vec4 vertexColor;
 in vec2 texCoord0;
+in float vertexFade;
 
 out vec4 fragColor;
 
@@ -20,6 +21,9 @@ void main() {
         discard;
     }
 #endif
+    if (vertexFade < 1.0) {
+        color.rgb = mix(FogColor.rgb, color.rgb, vertexFade);
+    }
     if (vertexDistance > FogStart) {
         float fog = vertexDistance < FogEnd ? smoothstep(FogStart, FogEnd, vertexDistance) : 1.0;
         color.rgb = mix(color.rgb, FogColor.rgb, fog * FogColor.a);

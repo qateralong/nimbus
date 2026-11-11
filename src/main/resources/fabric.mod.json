@@ -3,7 +3,7 @@
   "id": "nimbus",
   "version": "${version}",
   "name": "Nimbus",
-  "description": "Client and server optimization: per-type entity/block entity culling, async ray occlusion, far LOD, particle culling and per-type toggles, client tick LOD, world resolution scaling with CAS sharpening, adaptive quality, borderless fullscreen, CPU render-ahead limit, extended graphics settings with Sacrifice presets.",
+  "description": "All-in-one optimization for client and server: its own terrain renderer (GPU culling, occlusion culling, instanced entities and particles, distant LOD), a shader pack loader that works without Iris, Lithium-style server optimizations, lower memory use and faster loading. Replaces Sodium, Lithium, FerriteCore, ModernFix, ImmediatelyFast and more; changes nothing visible by default.",
   "authors": [
     "qateralong"
   ],
@@ -40,5 +40,8 @@
   "breaks": {
     "entityculling": "*"
   },
-  "accessWidener": "nimbus.accesswidener"
+  "accessWidener": "nimbus.accesswidener",
+  "contact": {
+    "sources": "https://github.com/qateralong/nimbus"
+  }
 }

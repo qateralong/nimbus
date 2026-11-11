@@ -42,7 +42,7 @@ public final class NimbusPages {
         OptionGroup main = general.group();
         List<String> presets = new ArrayList<>(List.of(Presets.NAMES));
         presets.add("custom");
-        main.add(Option.<String>cycle("nimbus:preset").name(Component.translatable("nimbus.option.preset"))
+        var preset = main.add(Option.<String>cycle("nimbus:preset").name(Component.translatable("nimbus.option.preset"))
                 .tooltip(Component.translatable("nimbus.presets.tip"))
                 .values(presets)
                 .binding(() -> presets.contains(config().preset) ? config().preset : "custom", name -> {
@@ -50,12 +50,25 @@ public final class NimbusPages {
                         Presets.apply(name);
                     }
                 })
-                .formatter(name -> Component.translatable("nimbus.preset." + name))
+                .formatter(name -> name.equals("custom") && presets.contains(config().presetBase) && !config().presetBase.equals("custom")
+                        ? Component.translatable("nimbus.preset.custom_from", Component.translatable("nimbus.preset." + config().presetBase))
+                        : Component.translatable("nimbus.preset." + name))
                 .flags(OptionFlag.RELOAD_CHUNKS));
+        // suggests a profile from the GPU name; it only becomes pending, Apply or Undo as usual
+        main.add(Option.action("nimbus:auto_profile").name(label("auto_profile")).tooltip(tip("auto_profile"))
+                .button(Component.translatable("nimbus.auto.button"))
+                .action(screen -> {
+                    HardwareProfile.Pick pick = HardwareProfile.pick();
+                    preset.set(pick.profile());
+                    net.minecraft.client.gui.components.toasts.SystemToast.addOrUpdate(Minecraft.getInstance().getToasts(),
+                            net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                            Component.translatable("nimbus.auto.title", Component.translatable("nimbus.preset." + pick.profile())), pick.reason());
+                }));
         vanilla(main, "render_distance", o.renderDistance()).impact(OptionImpact.HIGH);
         vanilla(main, "graphics_mode", o.graphicsMode()).impact(OptionImpact.HIGH);
-        main.add(slider("render_scale", 25, 100, 5, c -> c.renderScale, (c, v) -> c.renderScale = v, "%").impact(OptionImpact.HIGH));
+        SliderOption renderScale = main.add(slider("render_scale", 25, 100, 5, c -> c.renderScale, (c, v) -> c.renderScale = v, "%").impact(OptionImpact.HIGH));
         vanilla(main, "framerate_limit", o.framerateLimit());
+        toggle(main, "precise_limiter", c -> c.preciseLimiter, (c, v) -> c.preciseLimiter = v);
         vanilla(main, "vsync", o.enableVsync());
         vanilla(main, "simulation_distance", o.simulationDistance()).impact(OptionImpact.HIGH);
         OptionGroup display = group(general, "display");
@@ -69,8 +82,17 @@ public final class NimbusPages {
         vanilla(display, "fov", o.fov());
         vanilla(display, "bob_view", o.bobView());
         OptionGroup hud = group(general, "interface");
-        hud.add(slider("fps_overlay", 0, 2, 1, c -> c.fpsOverlay, (c, v) -> c.fpsOverlay = v, "corner"));
+        var fpsOverlay = hud.add(Option.<Integer>cycle("nimbus:fps_overlay").name(label("fps_overlay")).tooltip(tip("fps_overlay"))
+                .values(List.of(0, 1, 2))
+                .binding(() -> config().fpsOverlay, v -> {
+                    config().fpsOverlay = v;
+                    custom();
+                })
+                .formatter(v -> Component.translatable("nimbus.corner." + v))
+                .defaultValue(DEFAULTS.fpsOverlay));
+        toggle(hud, "fps_graph", c -> c.fpsGraph, (c, v) -> c.fpsGraph = v).enabled(() -> !Integer.valueOf(0).equals(fpsOverlay.value()));
         toggle(hud, "toasts", c -> c.toasts, (c, v) -> c.toasts = v);
+        toggle(hud, "menu_animations", c -> c.menuAnimations, (c, v) -> c.menuAnimations = v);
         toggle(hud, "fast_quit", c -> c.fastQuit, (c, v) -> c.fastQuit = v);
         toggle(hud, "quiet_reload", c -> c.quietReload, (c, v) -> c.quietReload = v);
         toggle(hud, "debug_line", c -> c.debugLine, (c, v) -> c.debugLine = v);
@@ -80,30 +102,42 @@ public final class NimbusPages {
         OptionGroup graphics = group(quality, "graphics");
         vanilla(graphics, "ambient_occlusion", o.ambientOcclusion()).impact(OptionImpact.LOW);
         vanilla(graphics, "biome_blend", o.biomeBlendRadius()).impact(OptionImpact.LOW);
-        vanilla(graphics, "mipmap", o.mipmapLevels()).afterApply(() -> {
+        Option<?, ?> mipmaps = vanilla(graphics, "mipmap", o.mipmapLevels()).afterApply(() -> {
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.updateMaxMipLevel(minecraft.options.mipmapLevels().get());
             minecraft.delayTextureReload();
         });
+        graphics.add(Option.<Integer>cycle("nimbus:anisotropy").name(label("anisotropy")).tooltip(tip("anisotropy"))
+                .values(List.of(0, 2, 4, 8, 16))
+                .binding(() -> config().anisotropy, v -> {
+                    config().anisotropy = v;
+                    custom();
+                })
+                .formatter(v -> v == 0 ? Component.translatable("options.off") : Component.literal(v + "×"))
+                .defaultValue(DEFAULTS.anisotropy)
+                .enabled(() -> mipmaps.value() instanceof Integer levels && levels > 0));
         vanilla(graphics, "entity_shadows", o.entityShadows()).impact(OptionImpact.LOW);
+        if (com.qateralong.nimbus.render.DynamicLights.SUPPORTED) {
+            toggle(graphics, "dynamic_lights", c -> c.dynamicLights, (c, v) -> c.dynamicLights = v).impact(OptionImpact.LOW);
+        }
         if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("sodium")) {
             toggle(graphics, "mip_fill", c -> c.mipFill, (c, v) -> c.mipFill = v).flags(OptionFlag.RELOAD_RESOURCES)
-                    .visible(() -> Minecraft.getInstance().options.mipmapLevels().get() > 0);
+                    .enabled(() -> mipmaps.value() instanceof Integer levels && levels > 0);
         }
-        graphics.add(slider("sharpness", 0, 100, 5, c -> c.sharpness, (c, v) -> c.sharpness = v, "%")).visible(() -> config().renderScale < 100);
-        toggle(graphics, "sharp_upscale", c -> c.sharpUpscale, (c, v) -> c.sharpUpscale = v).visible(() -> config().renderScale < 100);
+        graphics.add(slider("sharpness", 0, 100, 5, c -> c.sharpness, (c, v) -> c.sharpness = v, "%"));
+        toggle(graphics, "sharp_upscale", c -> c.sharpUpscale, (c, v) -> c.sharpUpscale = v).enabled(() -> renderScale.value() < 100);
         OptionGroup world = group(quality, "world");
-        toggle(world, "lod", c -> c.lod, (c, v) -> c.lod = v);
-        world.add(slider("lod_distance", 16, 128, 8, c -> c.lodDistance, (c, v) -> c.lodDistance = v, "")).visible(() -> config().lod);
-        toggle(world, "fog", c -> c.fog, (c, v) -> c.fog = v);
-        world.add(slider("fog_distance", 10, 300, 10, c -> c.fogDistance, (c, v) -> c.fogDistance = v, "%")).visible(() -> config().fog);
-        toggle(world, "sky", c -> c.sky, (c, v) -> c.sky = v);
-        toggle(world, "sun_moon", c -> c.sunMoon, (c, v) -> c.sunMoon = v).visible(() -> config().sky);
-        toggle(world, "stars", c -> c.stars, (c, v) -> c.stars = v).visible(() -> config().sky);
+        ToggleOption lod = toggle(world, "lod", c -> c.lod, (c, v) -> c.lod = v);
+        world.add(slider("lod_distance", 16, 128, 8, c -> c.lodDistance, (c, v) -> c.lodDistance = v, "")).enabled(() -> on(lod));
+        ToggleOption fog = toggle(world, "fog", c -> c.fog, (c, v) -> c.fog = v);
+        world.add(slider("fog_distance", 10, 300, 10, c -> c.fogDistance, (c, v) -> c.fogDistance = v, "%")).enabled(() -> on(fog));
+        ToggleOption sky = toggle(world, "sky", c -> c.sky, (c, v) -> c.sky = v);
+        toggle(world, "sun_moon", c -> c.sunMoon, (c, v) -> c.sunMoon = v).enabled(() -> on(sky));
+        toggle(world, "stars", c -> c.stars, (c, v) -> c.stars = v).enabled(() -> on(sky));
         toggle(world, "weather", c -> c.weather, (c, v) -> c.weather = v);
-        vanilla(world, "clouds", o.cloudStatus()).impact(OptionImpact.LOW);
+        Option<?, ?> clouds = vanilla(world, "clouds", o.cloudStatus()).impact(OptionImpact.LOW);
         world.add(slider("cloud_height", 0, 320, 8, c -> c.cloudHeight, (c, v) -> c.cloudHeight = v, "blocks"))
-                .visible(() -> Minecraft.getInstance().options.cloudStatus().get() != net.minecraft.client.CloudStatus.OFF);
+                .enabled(() -> clouds.value() != net.minecraft.client.CloudStatus.OFF);
         OptionGroup effects = group(quality, "effects").collapsed(true);
         toggle(effects, "vignette", c -> c.vignette, (c, v) -> c.vignette = v);
         vanilla(effects, "screen_effects", o.screenEffectScale());
@@ -114,36 +148,18 @@ public final class NimbusPages {
         toggle(effects, "piston_animation", c -> c.pistonAnimation, (c, v) -> c.pistonAnimation = v);
         toggle(effects, "instant_sneak", c -> c.instantSneak, (c, v) -> c.instantSneak = v);
         OptionGroup animations = group(quality, "animations").collapsed(true);
-        toggle(animations, "animated_textures", c -> c.animatedTextures, (c, v) -> c.animatedTextures = v);
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("sodium")) {
+            ToggleOption fade = toggle(animations, "chunk_fade", c -> c.chunkFade, (c, v) -> c.chunkFade = v);
+            animations.add(slider("chunk_fade_time", 250, 2000, 250, c -> c.chunkFadeTime, (c, v) -> c.chunkFadeTime = v, "ms")).enabled(() -> on(fade));
+        }
+        ToggleOption animated = toggle(animations, "animated_textures", c -> c.animatedTextures, (c, v) -> c.animatedTextures = v);
         for (String kind : Animations.KINDS) {
             toggle(animations, "anim." + kind, c -> !c.disabledAnimations.contains(kind), (c, v) -> {
                 c.disabledAnimations.remove(kind);
                 if (!v) {
                     c.disabledAnimations.add(kind);
                 }
-            }).visible(() -> config().animatedTextures);
-        }
-
-        if (com.qateralong.nimbus.pack.Pipeline.supported()) {
-            OptionPage shaders = page(mod, "shaders");
-            OptionGroup packs = group(shaders, "shader_packs");
-            List<String> names = new ArrayList<>();
-            names.add("");
-            names.addAll(com.qateralong.nimbus.pack.Pipeline.packNames());
-            packs.add(Option.<String>cycle("nimbus:shader_pack").name(label("shader_pack")).tooltip(tip("shader_pack"))
-                    .values(names)
-                    .binding(() -> names.contains(config().shaderPack) ? config().shaderPack : "", name -> {
-                        config().shaderPack = name;
-                        com.qateralong.nimbus.pack.Pipeline.select(name);
-                    })
-                    .formatter(name -> name.isEmpty() ? Component.translatable("nimbus.shader_pack.off") : Component.literal(name)));
-            packs.add(Option.action("nimbus:shader_options").name(label("shader_options")).tooltip(tip("shader_options"))
-                    .action(screen -> {
-                        com.qateralong.nimbus.pack.Pipeline pipeline = com.qateralong.nimbus.pack.Pipeline.get();
-                        if (pipeline != null) {
-                            Minecraft.getInstance().setScreen(new com.qateralong.nimbus.pack.PackOptionsScreen(screen, pipeline.options, ""));
-                        }
-                    }));
+            }).enabled(() -> on(animated));
         }
 
         OptionPage objects = page(mod, "objects");
@@ -205,14 +221,14 @@ public final class NimbusPages {
 
         OptionPage performance = page(mod, "performance");
         OptionGroup frames = group(performance, "frame_rate");
-        frames.add(slider("target_fps", 0, 240, 10, c -> c.targetFps, (c, v) -> c.targetFps = v, "fps"));
-        toggle(frames, "adaptive_resolution", c -> c.adaptiveResolution, (c, v) -> c.adaptiveResolution = v).visible(() -> config().targetFps > 0);
+        SliderOption targetFps = frames.add(slider("target_fps", 0, 240, 10, c -> c.targetFps, (c, v) -> c.targetFps = v, "fps"));
+        toggle(frames, "adaptive_resolution", c -> c.adaptiveResolution, (c, v) -> c.adaptiveResolution = v).enabled(() -> targetFps.value() > 0);
         OptionGroup background = group(performance, "background");
         background.add(slider("background_fps", 0, 120, 5, c -> c.backgroundFps, (c, v) -> c.backgroundFps = v, "fps"));
         background.add(slider("minimized_fps", 0, 30, 1, c -> c.minimizedFps, (c, v) -> c.minimizedFps = v, "fps"));
         background.add(slider("background_volume", 0, 100, 5, c -> c.backgroundVolume, (c, v) -> c.backgroundVolume = v, "%"));
-        background.add(slider("afk_minutes", 0, 30, 1, c -> c.afkMinutes, (c, v) -> c.afkMinutes = v, "min"));
-        background.add(slider("afk_fps", 1, 60, 1, c -> c.afkFps, (c, v) -> c.afkFps = v, "fps")).visible(() -> config().afkMinutes > 0);
+        SliderOption afk = background.add(slider("afk_minutes", 0, 30, 1, c -> c.afkMinutes, (c, v) -> c.afkMinutes = v, "min"));
+        background.add(slider("afk_fps", 1, 60, 1, c -> c.afkFps, (c, v) -> c.afkFps = v, "fps")).enabled(() -> afk.value() > 0);
         OptionGroup ticking = group(performance, "ticking");
         toggle(ticking, "hidden_tick", c -> c.hiddenTickLod, (c, v) -> c.hiddenTickLod = v);
         ticking.add(slider("entity_tick", 0, 160, 4, c -> c.entityTickDistance, (c, v) -> c.entityTickDistance = v, "blocks"));
@@ -221,7 +237,7 @@ public final class NimbusPages {
         OptionGroup engine = group(advanced, "engine");
         toggle(engine, "enabled", c -> c.enabled, (c, v) -> c.enabled = v).afterApply(Terrain::toggled);
         if (Terrain.supported()) {
-            engine.add(Option.<Integer>cycle("nimbus:render_engine")
+            var renderEngine = engine.add(Option.<Integer>cycle("nimbus:render_engine")
                     .name(label("render_engine"))
                     .tooltip(tip("render_engine"))
                     .values(List.of(0, 1))
@@ -233,15 +249,15 @@ public final class NimbusPages {
                     .defaultValue(DEFAULTS.terrainRenderer ? 1 : 0)
                     .afterApply(Terrain::toggled).impact(OptionImpact.HIGH));
             toggle(engine, "nimbus_mesher", c -> c.nimbusMesher, (c, v) -> c.nimbusMesher = v)
-                    .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer);
+                    .afterApply(Terrain::toggled).enabled(() -> Integer.valueOf(1).equals(renderEngine.value()));
             toggle(engine, "gpu_frustum", c -> c.gpuFrustum, (c, v) -> c.gpuFrustum = v)
-                    .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
+                    .afterApply(Terrain::toggled).enabled(() -> Integer.valueOf(1).equals(renderEngine.value())).impact(OptionImpact.MEDIUM);
             toggle(engine, "gpu_occlusion", c -> c.gpuOcclusion, (c, v) -> c.gpuOcclusion = v)
-                    .visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
+                    .enabled(() -> Integer.valueOf(1).equals(renderEngine.value())).impact(OptionImpact.MEDIUM);
             toggle(engine, "own_traversal", c -> c.ownTraversal, (c, v) -> c.ownTraversal = v)
-                    .afterApply(Terrain::toggled).visible(() -> config().terrainRenderer).impact(OptionImpact.MEDIUM);
+                    .afterApply(Terrain::toggled).enabled(() -> Integer.valueOf(1).equals(renderEngine.value())).impact(OptionImpact.MEDIUM);
             toggle(engine, "own_translucent_sort", c -> c.ownTranslucentSort, (c, v) -> c.ownTranslucentSort = v)
-                    .visible(() -> config().terrainRenderer);
+                    .enabled(() -> Integer.valueOf(1).equals(renderEngine.value()));
         }
         OptionGroup rendering = group(advanced, "rendering");
         rendering.add(slider("render_ahead", 0, 4, 1, c -> c.renderAhead, (c, v) -> c.renderAhead = v, "frames"));
@@ -257,11 +273,12 @@ public final class NimbusPages {
         toggle(optimizations, "stream_uploads", c -> c.streamUploads, (c, v) -> c.streamUploads = v);
         toggle(optimizations, "gui_batching", c -> c.guiBatching, (c, v) -> c.guiBatching = v);
         toggle(optimizations, "item_icon_cache", c -> c.itemIconCache, (c, v) -> c.itemIconCache = v);
-        toggle(optimizations, "hud_cache", c -> c.hudCache, (c, v) -> c.hudCache = v);
-        optimizations.add(slider("hud_fps", 20, 144, 4, c -> c.hudFps, (c, v) -> c.hudFps = v, "fps")).visible(() -> config().hudCache);
+        ToggleOption hudCache = toggle(optimizations, "hud_cache", c -> c.hudCache, (c, v) -> c.hudCache = v);
+        optimizations.add(slider("hud_fps", 20, 144, 4, c -> c.hudFps, (c, v) -> c.hudFps = v, "fps")).enabled(() -> on(hudCache));
         toggle(optimizations, "light_engine", c -> c.lightEngine, (c, v) -> c.lightEngine = v);
         toggle(optimizations, "chunk_decode", c -> c.chunkDecode, (c, v) -> c.chunkDecode = v);
         toggle(optimizations, "lazy_search", c -> c.lazySearch, (c, v) -> c.lazySearch = v);
+        toggle(optimizations, "async_screenshots", c -> c.asyncScreenshots, (c, v) -> c.asyncScreenshots = v);
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("sodium")) {
             toggle(optimizations, "sodium_graph_cache", c -> c.sodiumGraphCache, (c, v) -> c.sodiumGraphCache = v);
         }
@@ -288,6 +305,11 @@ public final class NimbusPages {
 
     private static OptionGroup group(OptionPage page, String id) {
         return page.group(Component.translatable("nimbus.group." + id));
+    }
+
+    // dependent options follow the parent's pending value, so they appear and vanish before Apply
+    private static boolean on(ToggleOption option) {
+        return Boolean.TRUE.equals(option.value());
     }
 
     private static void custom() {
@@ -320,7 +342,17 @@ public final class NimbusPages {
 
     private static Option<?, ?> vanilla(OptionGroup group, String key, OptionInstance<?> instance) {
         Option<?, ?> option = VanillaOptions.wrap("minecraft:" + key, instance);
-        return option == null ? Option.action("minecraft:" + key) : group.add(option);
+        if (option == null) {
+            return Option.action("minecraft:" + key);
+        }
+        // vanilla captions are short and clash with our groups ("Interface" was the GUI scale): our own wording
+        if (net.minecraft.client.resources.language.I18n.exists("nimbus.vanilla." + key)) {
+            option.name(Component.translatable("nimbus.vanilla." + key));
+        }
+        if (option instanceof SliderOption slider && key.equals("biome_blend")) {
+            slider.formatter(v -> v == 0 ? Component.translatable("options.off") : Component.literal((2 * v + 1) + "×" + (2 * v + 1)));
+        }
+        return group.add(option);
     }
 
     public static Component label(String key) {
@@ -357,6 +389,7 @@ public final class NimbusPages {
             case "frames" -> " " + Component.translatable("nimbus.frames").getString();
             case "fps" -> " FPS";
             case "min" -> " " + Component.translatable("nimbus.minutes").getString();
+            case "ms" -> " " + Component.translatable("nimbus.ms").getString();
             default -> unit;
         });
     }

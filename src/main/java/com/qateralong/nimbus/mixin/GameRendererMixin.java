@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class GameRendererMixin {
     @Inject(method = "renderLevel", at = @At("HEAD"))
     private void nimbus$begin(DeltaTracker delta, CallbackInfo ci) {
+        com.qateralong.nimbus.render.Anisotropy.apply();
         Scaler.begin();
     }
 

@@ -11,6 +11,18 @@ public final class ActionOption extends Option<Void, ActionOption> {
         super(id);
     }
 
+    private net.minecraft.network.chat.Component button;
+
+    // the clickable text on the right; "Open ›" when not set
+    public ActionOption button(net.minecraft.network.chat.Component button) {
+        this.button = button;
+        return this;
+    }
+
+    public net.minecraft.network.chat.Component button() {
+        return this.button;
+    }
+
     public ActionOption action(Consumer<Screen> action) {
         this.action = action;
         return this;

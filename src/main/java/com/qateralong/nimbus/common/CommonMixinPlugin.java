@@ -101,6 +101,9 @@ public class CommonMixinPlugin implements IMixinConfigPlugin {
             case "EntitySupportMixin" -> "supportCache";
             case "EntityFallCacheMixin" -> "fallCache";
             case "FaceShapeMixin" -> "faceShapes";
+            case "ChunkTickQueueMixin", "LevelTickSetMixin" -> "tickQueue";
+            case "PistonShapeMixin" -> "pistonShapes";
+            case "ExplosionExposureMixin" -> "explosionExposure";
             default -> null;
         };
     }

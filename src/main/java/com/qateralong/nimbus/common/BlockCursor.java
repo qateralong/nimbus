@@ -59,4 +59,27 @@ public final class BlockCursor {
         }
         return this.chunk(level, pos.getX(), pos.getZ()).getFluidState(pos.getX(), pos.getY(), pos.getZ());
     }
+
+    // For the entity fluid scan only. Never waits for a chunk: an entity at the edge of a teleport could otherwise hold
+    // the server thread on world generation (vanilla does, and the watchdog fired on it). A chunk not ready yet reads
+    // as no fluid for that tick.
+    public FluidState fluidIfReady(Level level, BlockPos pos) {
+        if (level.isOutsideBuildHeight(pos)) {
+            return Fluids.EMPTY.defaultFluidState();
+        }
+        int cx = pos.getX() >> 4;
+        int cz = pos.getZ() >> 4;
+        LevelChunk chunk = this.chunk;
+        if (chunk == null || this.level != level || this.cx != cx || this.cz != cz) {
+            chunk = ((ServerLevel) level).getChunkSource().getChunkNow(cx, cz);
+            if (chunk == null) {
+                return Fluids.EMPTY.defaultFluidState();
+            }
+            this.level = level;
+            this.chunk = chunk;
+            this.cx = cx;
+            this.cz = cz;
+        }
+        return chunk.getFluidState(pos.getX(), pos.getY(), pos.getZ());
+    }
 }

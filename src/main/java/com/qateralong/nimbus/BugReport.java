@@ -27,7 +27,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import org.lwjgl.glfw.GLFW;
 
-// One key press packs a screenshot, the log, settings and an engine dump into nimbus-bugs/баг N.zip.
+// One key press packs a screenshot, the log, settings and an engine dump into nimbus-bugs/BugReport-<date>-N.zip.
 public final class BugReport {
     public static KeyMapping key;
     private static volatile boolean busy;
@@ -205,7 +205,7 @@ public final class BugReport {
         SystemToast.addOrUpdate(minecraft.getToasts(), SystemToast.SystemToastId.PERIODIC_NOTIFICATION, Component.translatable("nimbus.bug.title"),
                 Component.translatable("nimbus.bug.saved", name));
         if (minecraft.player != null) {
-            Component link = Component.literal(written.getParent().toString()).withStyle(style -> style.withUnderlined(true).withColor(ChatFormatting.AQUA)
+            Component link = Component.translatable("nimbus.bug.open").withStyle(style -> style.withUnderlined(true).withColor(ChatFormatting.AQUA)
                     .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, written.getParent().toString())));
             minecraft.player.displayClientMessage(Component.translatable("nimbus.bug.chat", name, link), false);
         }

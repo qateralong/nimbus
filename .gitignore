@@ -6,3 +6,7 @@ out/
 *.iml
 .kotlin/
 libs/
+
+# internal working notes (kept locally)
+ROADMAP-*.md
+BENCH-*.md

@@ -151,7 +151,7 @@ public final class Terrain {
             vao = GlStateManager._glGenVertexArrays();
             GlStateManager._glBindVertexArray(vao);
             GL20.glEnableVertexAttribArray(0);
-            GL43.glVertexAttribIFormat(0, 3, GL11.GL_INT, 0);
+            GL43.glVertexAttribIFormat(0, 4, GL11.GL_INT, 0);
             GL43.glVertexAttribBinding(0, 0);
             GL43.glVertexBindingDivisor(0, 1);
             indices = GlStateManager._glGenBuffers();
@@ -206,7 +206,7 @@ public final class Terrain {
 
     // GPU per-draw frustum test; Hi-Z occlusion writes the same instance counts, so the two never run together
     public static boolean gpuFrustum() {
-        return active() && NimbusConfig.get().gpuFrustum && !NimbusConfig.get().gpuOcclusion && GpuFrustum.available();
+        return active() && NimbusConfig.get().gpuFrustum && GpuFrustum.available();
     }
 
     public static boolean meshing() {
@@ -646,7 +646,7 @@ public final class Terrain {
                 lastCylinder = fogCylinder;
             }
             builtFrame = frame;
-            occlusion = NimbusConfig.get().gpuOcclusion && HiZ.available();
+            occlusion = NimbusConfig.get().gpuOcclusion && HiZ.available() && HiZ.wanted(frame);
             if (occlusion) {
                 opaqueLayers();
                 for (int index : OPAQUE) {
@@ -654,7 +654,7 @@ public final class Terrain {
                         LISTS[index].uploadSecond();
                     }
                 }
-                HiZ.select(LISTS, OPAQUE, frame);
+                selectPending = true;
             } else {
                 HiZ.culling = false;
             }
@@ -685,6 +685,11 @@ public final class Terrain {
             return false;
         }
         prepare(levelRenderer, x, y, z);
+        if (selectPending) {
+            // needs this frame's matrices for the frustum part, so it runs with the first layer
+            selectPending = false;
+            HiZ.select(LISTS, OPAQUE, builtFrame, projection, modelView, x, y, z);
+        }
         LevelRendererAccessor renderer = (LevelRendererAccessor) levelRenderer;
         ObjectArrayList<SectionRenderDispatcher.RenderSection> visible = renderer.nimbus$visibleSections();
         layer.setupRenderState();
@@ -699,7 +704,8 @@ public final class Terrain {
             draws = list.count;
             GpuTimer.quads(index, list.quads);
             if (draws > 0 && list.offset >= 0) {
-                if (gpuFrustum()) {
+                // with occlusion on, the Hi-Z passes do the frustum test for the opaque and translucent lists
+                if (gpuFrustum() && !(occlusion && HiZ.culling && (index == layerIndex(RenderType.translucent()) || isOpaque(index)))) {
                     GpuFrustum.cull(list, projection, modelView, x, y, z);
                 }
                 draw(layer, modelView, projection, list.offset, draws, x, y, z);
@@ -712,7 +718,7 @@ public final class Terrain {
         layer.clearRenderState();
         if (layer == RenderType.cutout() && occlusion && HiZ.culling) {
             HiZ.capture(projection, modelView, x, y, z);
-            HiZ.test(LISTS, OPAQUE, layerIndex(RenderType.translucent()));
+            HiZ.test(LISTS, OPAQUE, layerIndex(RenderType.translucent()), projection, modelView, x, y, z);
             List<RenderType> layers = RenderType.chunkBufferLayers();
             for (int opaque : OPAQUE) {
                 if (opaque < 0 || opaque >= LISTS.length) {
@@ -732,6 +738,11 @@ public final class Terrain {
 
     private static final int[] OPAQUE = {-1, -1, -1};
     private static boolean occlusion;
+    private static boolean selectPending;
+
+    private static boolean isOpaque(int index) {
+        return index >= 0 && (index == OPAQUE[0] || index == OPAQUE[1] || index == OPAQUE[2]);
+    }
 
     private static void opaqueLayers() {
         OPAQUE[0] = layerIndex(RenderType.solid());
@@ -1140,6 +1151,10 @@ public final class Terrain {
         int bz = (int) Math.floor(z);
         GL20.glUniform3i(program.cameraBlock, bx, by, bz);
         GL20.glUniform3f(program.cameraFrac, (float) (x - bx), (float) (y - by), (float) (z - bz));
+        com.qateralong.nimbus.NimbusConfig config = com.qateralong.nimbus.NimbusConfig.get();
+        GL20.glUniform1i(program.fadeNow, Origins.now());
+        GL20.glUniform1f(program.fadeTime, config.chunkFade ? Math.max(1, config.chunkFadeTime) : 0.0F);
+        DynamicLights.upload(program.dynLights, program.dynCount);
         GlStateManager._activeTexture(GL13.GL_TEXTURE2);
         GlStateManager._bindTexture(lightmap);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);

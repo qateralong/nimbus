@@ -32,62 +32,85 @@ public final class Presets {
         c.frameContentDistance = d.frameContentDistance;
         c.particleDistance = d.particleDistance;
         c.maxParticles = d.maxParticles;
+        int mipmaps = o.mipmapLevels().get();
         c.renderScale = 100;
         c.sharpness = 0;
         c.fog = d.fog;
         c.leavesCulling = d.leavesCulling;
-        c.sky = c.weather = c.vignette = c.beaconBeams = c.animatedTextures = c.blockBreakParticles = true;
+        c.lod = d.lod;
+        c.lodDistance = d.lodDistance;
+        c.anisotropy = d.anisotropy;
+        c.sky = c.sunMoon = c.stars = c.weather = c.vignette = c.beaconBeams = c.animatedTextures = c.blockBreakParticles = true;
         c.enabled = true;
+        c.menuAnimations = true;
+        c.chunkFade = true;
+        c.dynamicLights = false;
         switch (name) {
+            // everything high, within reason
             case "none" -> {
                 o.graphicsMode().set(GraphicsStatus.FANCY);
                 o.ambientOcclusion().set(true);
                 o.cloudStatus().set(CloudStatus.FANCY);
                 o.particles().set(ParticleStatus.ALL);
                 o.entityShadows().set(true);
-                o.biomeBlendRadius().set(2);
+                o.biomeBlendRadius().set(5);
                 o.mipmapLevels().set(4);
-                o.entityDistanceScaling().set(1.0);
+                o.entityDistanceScaling().set(1.5);
+                c.anisotropy = 16;
+                c.sharpness = 30;
+                c.lod = true;
+                c.lodDistance = 64;
+                c.dynamicLights = true;
             }
+            // for most players: full resolution, detailed graphics, only what nobody notices goes
             case "subtle" -> {
                 o.graphicsMode().set(GraphicsStatus.FANCY);
                 o.ambientOcclusion().set(true);
                 o.cloudStatus().set(CloudStatus.FAST);
                 o.particles().set(ParticleStatus.ALL);
+                o.entityShadows().set(true);
+                o.biomeBlendRadius().set(2);
+                o.mipmapLevels().set(4);
+                o.entityDistanceScaling().set(1.0);
+                c.anisotropy = 8;
+                c.sharpness = 30;
+                c.leavesCulling = 1;
+                c.detailDistance = 48;
+                c.nameTagDistance = 32;
+                c.signTextDistance = 24;
+                c.frameContentDistance = 48;
+                c.particleDistance = 64;
+                c.dynamicLights = true;
+            }
+            // steady on a weak machine: 75% resolution, distant terrain, cuts in what is hardly seen
+            case "serious" -> {
+                o.graphicsMode().set(GraphicsStatus.FANCY);
+                o.ambientOcclusion().set(true);
+                o.cloudStatus().set(CloudStatus.FAST);
+                o.particles().set(ParticleStatus.DECREASED);
                 o.entityShadows().set(false);
                 o.biomeBlendRadius().set(1);
                 o.mipmapLevels().set(2);
                 o.entityDistanceScaling().set(1.0);
+                c.renderScale = 75;
+                c.sharpness = 85;
+                c.anisotropy = 4;
+                c.lod = true;
+                c.lodDistance = 32;
                 c.vignette = false;
-                c.leavesCulling = 1;
-                c.itemDistance = 32;
-                c.detailDistance = 32;
+                c.leavesCulling = 2;
+                c.itemDistance = 24;
+                c.experienceDistance = 24;
+                c.detailDistance = 24;
+                c.shadowDistance = 16;
                 c.nameTagDistance = 24;
                 c.signTextDistance = 12;
-                c.blockEntityDistance = 40;
+                c.blockEntityDistance = 48;
                 c.frameContentDistance = 24;
-                c.particleDistance = 48;
-                c.maxParticles = 3000;
+                c.particleDistance = 40;
+                c.maxParticles = 2000;
             }
-            case "serious" -> {
-                o.graphicsMode().set(GraphicsStatus.FAST);
-                o.ambientOcclusion().set(false);
-                o.cloudStatus().set(CloudStatus.OFF);
-                o.particles().set(ParticleStatus.DECREASED);
-                o.entityShadows().set(false);
-                o.biomeBlendRadius().set(0);
-                o.mipmapLevels().set(0);
-                o.entityDistanceScaling().set(0.75);
-                c.renderScale = 75;
-                c.sharpness = 50;
-                c.vignette = false;
-                c.weather = false;
-                c.animatedTextures = false;
-                c.leavesCulling = 2;
-                scale(c, 0.6);
-                c.mobDistance = 64;
-                c.maxParticles = 1500;
-            }
+            // a potato: everything that can go, goes
             case "max" -> {
                 o.graphicsMode().set(GraphicsStatus.FAST);
                 o.ambientOcclusion().set(false);
@@ -98,13 +121,17 @@ public final class Presets {
                 o.mipmapLevels().set(0);
                 o.entityDistanceScaling().set(0.5);
                 c.renderScale = 50;
-                c.sharpness = 70;
+                c.sharpness = 100;
                 c.vignette = false;
+                c.sky = false;
+                c.sunMoon = false;
+                c.stars = false;
                 c.weather = false;
                 c.animatedTextures = false;
-                c.sky = false;
                 c.beaconBeams = false;
                 c.blockBreakParticles = false;
+                c.menuAnimations = false;
+                c.chunkFade = false;
                 c.leavesCulling = 2;
                 scale(c, 0.4);
                 c.mobDistance = 48;
@@ -113,7 +140,13 @@ public final class Presets {
             default -> {
             }
         }
+        if (o.mipmapLevels().get() != mipmaps) {
+            Minecraft minecraft = Minecraft.getInstance();
+            minecraft.updateMaxMipLevel(o.mipmapLevels().get());
+            minecraft.delayTextureReload();
+        }
         c.preset = name;
+        c.presetBase = name;
         c.save();
         o.save();
     }

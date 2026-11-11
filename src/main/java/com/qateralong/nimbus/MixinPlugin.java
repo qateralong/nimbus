@@ -84,7 +84,11 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".VertexBufferMixin") || mixinClassName.endsWith(".VertexFormatMixin")) {
             return this.streamUploads && !FabricLoader.getInstance().isModLoaded("immediatelyfast");
         }
-        if (mixinClassName.endsWith(".MultipartPredicateMixin")) {
+        if (mixinClassName.endsWith(".MultipartSelectorMixin")) {
+            return !FabricLoader.getInstance().isModLoaded("sodium");
+        }
+        if (mixinClassName.endsWith(".MultipartPredicateMixin") || mixinClassName.endsWith(".MultipartConditionMixin")
+                || mixinClassName.endsWith(".MultipartOrMixin")) {
             return this.dedupModels && !FabricLoader.getInstance().isModLoaded("ferritecore");
         }
         if (mixinClassName.endsWith(".BakedQuadMixin") || mixinClassName.endsWith(".ModelManagerMixin")) {

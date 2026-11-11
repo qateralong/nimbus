@@ -25,6 +25,6 @@ public abstract class EntityFluidScanMixin {
     @WrapOperation(method = "updateFluidHeightAndDoFluidPushing", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getFluidState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/material/FluidState;"))
     private FluidState nimbus$fluid(Level level, BlockPos pos, Operation<FluidState> original) {
         BlockCursor cursor = BlockCursor.of(level);
-        return cursor == null ? original.call(level, pos) : cursor.fluid(level, pos);
+        return cursor == null ? original.call(level, pos) : cursor.fluidIfReady(level, pos);
     }
 }

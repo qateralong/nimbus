@@ -20,6 +20,9 @@ public class Nimbus implements ClientModInitializer {
     public static int frames;
     private static KeyMapping toggle;
     private static KeyMapping settings;
+    private static KeyMapping shaderReload;
+    private static KeyMapping shaderToggle;
+    private static KeyMapping shaderScreen;
 
     @Override
     public void onInitializeClient() {
@@ -60,13 +63,14 @@ public class Nimbus implements ClientModInitializer {
         toggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.toggle", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         settings = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.settings", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.nimbus"));
         BugReport.key = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.bug", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, "key.categories.nimbus"));
+        // the same keys as Iris; left unbound when Iris itself is installed
+        boolean iris = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("iris");
+        shaderReload = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.shader_reload", InputConstants.Type.KEYSYM, iris ? GLFW.GLFW_KEY_UNKNOWN : GLFW.GLFW_KEY_R, "key.categories.nimbus"));
+        shaderToggle = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.shader_toggle", InputConstants.Type.KEYSYM, iris ? GLFW.GLFW_KEY_UNKNOWN : GLFW.GLFW_KEY_K, "key.categories.nimbus"));
+        shaderScreen = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.nimbus.shader_screen", InputConstants.Type.KEYSYM, iris ? GLFW.GLFW_KEY_UNKNOWN : GLFW.GLFW_KEY_O, "key.categories.nimbus"));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof net.minecraft.client.gui.screens.TitleScreen) {
                 Startup.titleScreen();
-            }
-            if (screen instanceof OptionsScreen) {
-                Screens.getButtons(screen).add(Button.builder(Component.literal("Nimbus"), b -> client.setScreen(new NimbusScreen(screen)))
-                        .bounds(width - 84, 6, 78, 20).build());
             }
         });
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((graphics, delta) -> FpsOverlay.render(graphics));
@@ -92,6 +96,28 @@ public class Nimbus implements ClientModInitializer {
             while (settings.consumeClick()) {
                 client.setScreen(new NimbusScreen(client.screen));
             }
+            if (com.qateralong.nimbus.pack.Pipeline.supported()) {
+                NimbusConfig config = NimbusConfig.get();
+                while (shaderReload.consumeClick()) {
+                    if (config.shaders && com.qateralong.nimbus.pack.Pipeline.get() != null) {
+                        com.qateralong.nimbus.pack.Pipeline.reload();
+                        actionBar(client, Component.translatable("nimbus.shaders.reloaded"));
+                    }
+                }
+                while (shaderToggle.consumeClick()) {
+                    if (config.shaderPack == null || config.shaderPack.isEmpty()) {
+                        actionBar(client, Component.translatable("nimbus.shaders.none"));
+                        continue;
+                    }
+                    config.shaders = !config.shaders;
+                    config.save();
+                    com.qateralong.nimbus.pack.Pipeline.select(config.shaders ? config.shaderPack : "");
+                    actionBar(client, Component.translatable(config.shaders ? "nimbus.shaders.on" : "nimbus.shaders.off", config.shaderPack.replace(".zip", "")));
+                }
+                while (shaderScreen.consumeClick()) {
+                    client.setScreen(new com.qateralong.nimbus.pack.ShaderScreen(client.screen));
+                }
+            }
             if (client.level != null && client.level.getLightEngine() instanceof com.qateralong.nimbus.light.ClientLight light) {
                 var camera = client.gameRenderer.getMainCamera().getPosition();
                 light.healAround(camera.x, camera.y, camera.z);
@@ -100,5 +126,11 @@ public class Nimbus implements ClientModInitializer {
             Idle.tick(client);
             Bench.tick(client);
         });
+    }
+
+    private static void actionBar(net.minecraft.client.Minecraft client, Component text) {
+        if (client.player != null) {
+            client.player.displayClientMessage(text, true);
+        }
     }
 }

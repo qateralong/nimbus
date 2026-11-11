@@ -60,7 +60,7 @@ public final class NimbusConfig {
     public boolean terrainRenderer = true;
     public boolean ownTraversal = true;
     public boolean nimbusMesher = true;
-    public boolean gpuOcclusion = false;
+    public boolean gpuOcclusion = true;
     public boolean gpuFrustum = true;
     public boolean signTextCache = true;
     public boolean guiItemBatching = true;
@@ -79,7 +79,9 @@ public final class NimbusConfig {
     public boolean entityInstancing = true;
     public boolean lod = false;
     // file or folder name in .minecraft/shaderpacks, empty = off
+    public boolean shaders = false;
     public String shaderPack = "";
+    public int anisotropy = 0;
     public int lodDistance = 48;
     public boolean weatherCache = true;
     public boolean fluidCache = true;
@@ -100,6 +102,7 @@ public final class NimbusConfig {
     public boolean blockBreakParticles = true;
     public int renderAhead = 0;
     public String preset = "none";
+    public String presetBase = "";
     public boolean sunMoon = true;
     public boolean stars = true;
     public int cloudHeight = 0;
@@ -125,6 +128,13 @@ public final class NimbusConfig {
     public boolean dedupModels = true;
     public boolean mipFill = false;
     public boolean lazySearch = true;
+    public boolean menuAnimations = true;
+    public boolean fpsGraph = false;
+    public boolean chunkFade = false;
+    public int chunkFadeTime = 750;
+    public boolean dynamicLights = false;
+    public boolean asyncScreenshots = true;
+    public boolean preciseLimiter = true;
     public List<String> disabledParticles = new ArrayList<>();
     public List<String> disabledAnimations = new ArrayList<>();
     public boolean debugLine = false;
@@ -152,7 +162,7 @@ public final class NimbusConfig {
         return instance;
     }
 
-    private static final int CONFIG_VERSION = 3;
+    private static final int CONFIG_VERSION = 5;
 
     // 2: own terrain engine on by default (it falls back to vanilla on its own when unsupported or Sodium is present)
     private void migrate() {
@@ -161,6 +171,14 @@ public final class NimbusConfig {
         }
         if (this.configVersion < 3) {
             this.invisibleDefaults();
+        }
+        // 4: shaders have their own on/off switch; the pack name stays as the choice
+        if (this.configVersion < 4) {
+            this.shaders = this.shaderPack != null && !this.shaderPack.isEmpty();
+        }
+        // 5: occlusion culling works with the GPU frustum test and switches itself off where it does not pay
+        if (this.configVersion < 5) {
+            this.gpuOcclusion = true;
         }
         this.configVersion = CONFIG_VERSION;
     }
